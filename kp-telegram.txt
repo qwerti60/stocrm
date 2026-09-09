@@ -1,0 +1,40 @@
+КП — Приложение автосервиса + STOCRM (как FIT SERVICE)
+
+📄 КП: https://app72.ru/projects/stocrm-mobile-app/kp.html
+📋 ТЗ: https://app72.ru/projects/stocrm-mobile-app/tz.html
+📱 APK 32-bit (Galaxy A10 и старше): https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing
+📱 APK 64-bit (новые телефоны): https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing
+   Вход: любой номер, код 1234
+
+Ваше брендированное приложение iOS + Android:
+гараж авто, запись 24/7, карта филиалов, история обслуживания.
+Заявка уходит в вашу STOCRM (сделка, источник «Онлайн-запись»).
+SID ключ живёт на сервере, не в приложении.
+
+Это не штатное приложение сотрудников STOCRM и не GoodGarage —
+свой бренд в сторах, UX ориентир — FIT SERVICE.
+
+Этапы:
+• 1. MVP + интеграция STOCRM — 175 000 ₽ · 2.5–3 нед.
+  Flutter, OTP, гараж, запись → сделка, филиалы, история
+• 2. Пакет «как FIT» — +85 000 ₽ · +1–1.5 нед.
+  статус ремонта, push «авто готово», рекомендации ТО, чат, бонусы
+• Разработка: 260 000 ₽ · ~4 нед.
+
+Сторы и инфраструктура (1-й год):
+• Apple Developer на год, с подпиской — 48 000 ₽
+  продление со 2-го года — тариф на тот момент неизвестен
+• Google Play — 2 500 ₽ + $30 подписка
+  цена продления аккаунта через год неизвестна
+• Размещение: Google Play (тест 14 дней) + App Store + RuStore — 30 000 ₽
+• Хостинг — 700–1 000 ₽/мес
+• К выходу в сторы: 340 500 ₽ + $30 (+ хостинг помесячно)
+
+Стек: Flutter · FastAPI/Nest · PostgreSQL · STOCRM API · SMS OTP · FCM
+SMS и push — по тарифу оператора.
+
+Нужно от вас: SID + домен STOCRM, филиалы, услуги, логотип, реквизиты ИП/ООО для сторов.
+
+Кейсы: https://app72.ru
+Telegram: https://t.me/app154
+ИП Иванов А.В. · +7 913 914-29-94 · admin@qwerti.ru

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>КП — Приложение автосервиса + STOCRM (как FIT SERVICE)</title>
+  <style>
+    :root {
+      --ink: #12141c;
+      --muted: #4a5060;
+      --cream: #f2f3f7;
+      --paper: #fcfcfe;
+      --accent: #0b1f33;
+      --accent2: #ea580c;
+      --ok: #10b981;
+      --line: #d8dbe3;
+      --cover-1: #071018;
+      --cover-2: #123047;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11pt; line-height: 1.52; color: var(--ink); background: var(--cream); }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12mm; padding: 20mm 22mm 18mm; background: var(--paper); box-shadow: 0 4px 32px rgba(18, 20, 28, 0.08); page-break-after: always; position: relative; overflow: hidden; }
+    .page:last-child { page-break-after: auto; }
+    .cover { display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(155deg, var(--cover-1) 0%, var(--cover-2) 52%, #c2410c 100%); color: #fff7ed; padding: 14mm 18mm 12mm; box-sizing: border-box; }
+    .cover::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 50% at 95% 5%, rgba(251, 146, 60, 0.35) 0%, transparent 55%); pointer-events: none; }
+    .cover-badge { display: inline-block; font-size: 8pt; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase; border: 1px solid rgba(255, 247, 237, 0.35); padding: 4px 12px; border-radius: 999px; position: relative; z-index: 1; }
+    .cover h1 { font-family: Georgia, serif; font-size: 17pt; font-weight: 700; line-height: 1.16; margin-top: 4mm; position: relative; z-index: 1; }
+    .cover .cover-sub { font-size: 10.5pt; font-weight: 500; color: #fff; margin-top: 8px; line-height: 1.42; position: relative; z-index: 1; }
+    .cover-meta { font-size: 8.5pt; border-top: 1px solid rgba(255, 247, 237, 0.22); padding-top: 10px; line-height: 1.45; position: relative; z-index: 1; }
+    .cover-top { flex: 1 1 auto; position: relative; z-index: 1; }
+    h2 { font-family: Georgia, serif; font-size: 15pt; color: var(--accent); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+    h3 { font-size: 11pt; font-weight: 700; margin: 12px 0 6px; }
+    p { margin-bottom: 10px; color: var(--muted); }
+    p strong { color: var(--ink); }
+    ul { margin: 0 0 12px 18px; color: var(--muted); }
+    li { margin-bottom: 5px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 12px 0; }
+    .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: linear-gradient(180deg, #fff, #fff7ed); }
+    .card h3 { margin-top: 0; font-size: 10pt; color: var(--accent); }
+    .card .amount { font-family: Georgia, serif; font-size: 13.5pt; font-weight: 700; color: var(--accent2); margin: 4px 0 6px; }
+    .card.featured { border: 2px solid var(--accent2); }
+    .highlight { background: linear-gradient(120deg, #fff7ed, #f8fafc); border-left: 4px solid var(--accent2); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 12px 0; }
+    .highlight p { color: var(--ink); margin: 0; font-weight: 500; font-size: 10pt; }
+    .warn { background: #fff7ed; border-left: 4px solid #b45309; padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 12px 0; }
+    .warn p { color: var(--ink); margin: 0; font-size: 9.5pt; }
+    .stack { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0 12px; }
+    .stack span { background: #ffedd5; color: #9a3412; border: 1px solid var(--line); padding: 4px 10px; border-radius: 6px; font-size: 8pt; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 8pt; margin: 10px 0; }
+    th, td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: top; }
+    th { background: linear-gradient(180deg, #ffedd5, #fed7aa); color: var(--accent); font-weight: 700; }
+    .week { font-weight: 700; color: var(--accent2); white-space: nowrap; }
+    .price-block { text-align: center; padding: 14px; border-radius: 14px; background: linear-gradient(135deg, #071018, #123047); color: #fff; margin: 12px 0; }
+    .price-block .sum { font-family: Georgia, serif; font-size: 18pt; font-weight: 700; }
+    .price-block .note { font-size: 9pt; opacity: 0.92; margin-top: 6px; }
+    .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 10px 0; font-size: 8.5pt; }
+    .check-item { display: flex; align-items: flex-start; gap: 7px; padding: 7px 9px; background: #fff7ed; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+    .check-item::before { content: '✓'; color: var(--ok); font-weight: 800; flex-shrink: 0; }
+    .requisites { font-size: 9.5pt; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; }
+    .requisites p { margin-bottom: 5px; color: var(--ink); }
+    .requisites p:last-child { margin-bottom: 0; }
+    .requisites .label { color: var(--accent); font-weight: 700; display: inline-block; min-width: 6.5em; }
+    .footer-note { font-size: 9pt; color: var(--muted); margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+    a { color: var(--accent2); }
+    .apk-btn { display: inline-block; margin: 10px 8px 0 0; padding: 8px 16px; border-radius: 999px; background: #ea580c; color: #fff !important; font-weight: 800; font-size: 9.5pt; text-decoration: none; }
+    .shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 10px; margin-top: 8px; }
+    .shot { margin: 0; text-align: center; }
+    .shot img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); background: #0b1f33; display: block; }
+    .shot figcaption { font-size: 7.5pt; color: var(--muted); margin-top: 4px; font-weight: 600; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; }
+      .cover, .price-block, th, .apk-btn { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="page cover">
+    <div class="cover-top">
+      <span class="cover-badge">Коммерческое предложение · Flutter · STOCRM · как FIT SERVICE</span>
+      <h1>Мобильное приложение вашего автосервиса с записью прямо в STOCRM</h1>
+      <p class="cover-sub">Одно приложение на <strong>iOS и Android</strong>: гараж авто, онлайн-запись 24/7, карта филиалов, история обслуживания, статус ремонта. Заявки создаются в <strong>вашей STOCRM</strong> — приёмка работает как привыкла, клиент получает сервис уровня FIT SERVICE под вашим брендом.</p>
+      <div class="stack" style="margin-top:12px;position:relative;z-index:1">
+        <span style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.25)">Flutter</span>
+        <span style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.25)">STOCRM API</span>
+        <span style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.25)">Гараж · запись</span>
+        <span style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.25)">Сервисная книжка</span>
+      </div>
+    </div>
+    <div class="cover-meta">
+      <strong style="color:#fff7ed">Заказчик:</strong> автосервис на STOCRM<br />
+      <strong style="color:#fff7ed">Исполнитель:</strong> ИП Иванов А.В. · <a href="https://t.me/app154" style="color:#fdba74">t.me/app154</a> · <a href="tel:+79139142994" style="color:#fdba74">+7&nbsp;913&nbsp;914‑29‑94</a> · <a href="mailto:admin@qwerti.ru" style="color:#fdba74">admin@qwerti.ru</a><br />
+      <strong style="color:#fff7ed">MVP:</strong> 175&nbsp;000&nbsp;₽ · 2.5–3 нед. · <strong style="color:#fff7ed">+ FIT-пакет:</strong> +85&nbsp;000&nbsp;₽ · +1–1.5 нед. · <strong style="color:#fff7ed">Разработка:</strong> 260&nbsp;000&nbsp;₽ · ~4 нед.<br />
+      <strong style="color:#fff7ed">Сторы 1-й год:</strong> Apple 48&nbsp;000&nbsp;₽ · Google 2&nbsp;500&nbsp;₽ + $30 · публикация 30&nbsp;000&nbsp;₽ · хостинг 700–1&nbsp;000&nbsp;₽/мес<br />
+      <strong style="color:#fff7ed">APK:</strong> <a href="https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing" style="color:#fdba74">32-bit</a> · <a href="https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing" style="color:#fdba74">64-bit</a> · вход: код <strong>1234</strong>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>Зачем своё приложение</h2>
+    <div class="highlight">
+      <p>STOCRM уже ведёт клиентов, авто и заказ-наряды. Штатное приложение вендора — для <strong>сотрудников</strong>. Клиентам нужен свой канал: как у FIT SERVICE, с вашим логотипом в App Store / Google Play, без чужого бренда в сторах.</p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>Клиент</h3>
+        <ul style="font-size:8.5pt">
+          <li>Вход по телефону (OTP)</li>
+          <li>Гараж: номер, марка, пробег</li>
+          <li>Запись: услуга → филиал → слот</li>
+          <li>История визитов / ЗН</li>
+          <li>Карта и телефоны СТО</li>
+          <li>Статус ремонта, чат, бонусы*</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Интеграция</h3>
+        <ul style="font-size:8.5pt">
+          <li>SID только на сервере</li>
+          <li>Сделка <code>offer/new/with_contact</code></li>
+          <li>Источник «Онлайн-запись»</li>
+          <li>Контакт по телефону, без дублей</li>
+          <li>Кэш каталога работ</li>
+          <li>Журнал заявок, если CRM недоступна</li>
+        </ul>
+      </div>
+      <div class="card featured">
+        <h3>Как FIT SERVICE</h3>
+        <ul style="font-size:8.5pt">
+          <li>Запись без звонка 24/7</li>
+          <li>Сервисная книжка в телефоне</li>
+          <li>Ближайшая СТО на карте</li>
+          <li>Рекомендации и «пора на ТО»*</li>
+          <li>Push «авто готово»*</li>
+          <li>Акции и бонусы*</li>
+        </ul>
+      </div>
+    </div>
+    <p style="font-size:9pt">*Этап 2. Полное ТЗ: <a href="tz.html">tz.html</a>.</p>
+
+    <div class="warn">
+      <p><strong>API вендора.</strong> Wiki STOCRM уверенно закрывает сделки и склад. Календарь постов «в слот» подтверждаем по вашему SID в первые дни. Если методов нет — MVP пишет заявку-сделку, пост бронирует приёмка; жёсткие слоты — этап 2.</p>
+    </div>
+
+    <h3>Стек</h3>
+    <div class="stack">
+      <span>Flutter (iOS + Android)</span>
+      <span>FastAPI / Nest</span>
+      <span>PostgreSQL</span>
+      <span>STOCRM External API</span>
+      <span>SMS OTP</span>
+      <span>FCM / APNs</span>
+    </div>
+
+    <h3>Экраны (есть кликабельный прототип)</h3>
+    <table>
+      <thead><tr><th>Экран</th><th>Назначение</th></tr></thead>
+      <tbody>
+        <tr><td>Вход</td><td>Телефон, OTP</td></tr>
+        <tr><td>Главная</td><td>Авто, запись, акции, ближайший визит</td></tr>
+        <tr><td>Гараж</td><td>Авто клиента, карточка, добавление</td></tr>
+        <tr><td>Запись</td><td>Мастер: услуга → филиал → время</td></tr>
+        <tr><td>Филиалы</td><td>Адреса, карта, звонок</td></tr>
+        <tr><td>Визиты</td><td>Предстоящие и история заказ-нарядов</td></tr>
+        <tr><td>Статус / чат / профиль</td><td>Ремонт, специалист, бонусы (этап 2 в бою, в прототипе уже кликабельно)</td></tr>
+      </tbody>
+    </table>
+    <div class="highlight">
+      <p><strong>APK на Android</strong> (вход: код <strong>1234</strong>): <a href="https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing">32-bit</a> (Galaxy A10 и старше) · <a href="https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing">64-bit</a> (новые телефоны). Скрины — на следующих страницах.</p>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>Прототип на телефоне</h2>
+    <p>Сборки DRIVE СТО, mock-данные. Заявки в боевом контуре уйдут в STOCRM.</p>
+    <div class="shots">
+      <figure class="shot"><img src="screenshots/01-auth.png" alt="Вход" /><figcaption>Вход · OTP</figcaption></figure>
+      <figure class="shot"><img src="screenshots/02-home.png" alt="Главная" /><figcaption>Главная</figcaption></figure>
+      <figure class="shot"><img src="screenshots/03-garage.png" alt="Гараж" /><figcaption>Гараж</figcaption></figure>
+      <figure class="shot"><img src="screenshots/04-book.png" alt="Запись" /><figcaption>Запись · услуги</figcaption></figure>
+      <figure class="shot"><img src="screenshots/05-visits.png" alt="Визиты" /><figcaption>Визиты / книжка</figcaption></figure>
+      <figure class="shot"><img src="screenshots/06-profile.png" alt="Профиль" /><figcaption>Профиль · бонусы</figcaption></figure>
+      <figure class="shot"><img src="screenshots/07-chat.png" alt="Чат" /><figcaption>Чат со специалистом</figcaption></figure>
+      <figure class="shot"><img src="screenshots/08-branches.png" alt="Филиалы" /><figcaption>Филиалы</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>Мастер записи</h2>
+    <p>Услуга → филиал → слот → подтверждение. Кнопка «Отправить в STOCRM» в прототипе показывает сделку <code>/offer/new/with_contact</code>.</p>
+    <div class="shots" style="grid-template-columns: repeat(4, 1fr);">
+      <figure class="shot"><img src="screenshots/09-booking-branch.png" alt="Филиал" /><figcaption>Шаг · филиал</figcaption></figure>
+      <figure class="shot"><img src="screenshots/10-booking-time.png" alt="Время" /><figcaption>Шаг · время</figcaption></figure>
+      <figure class="shot"><img src="screenshots/11-booking-confirm.png" alt="Подтверждение" /><figcaption>Подтверждение</figcaption></figure>
+      <figure class="shot"><img src="screenshots/12-booking-dialog.png" alt="Заявка в STOCRM" /><figcaption>Заявка в STOCRM</figcaption></figure>
+    </div>
+    <p style="margin-top:14px">
+      <a class="apk-btn" href="https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing">APK 32-bit</a>
+      <a class="apk-btn" href="https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing">APK 64-bit</a>
+    </p>
+    <p style="font-size:8.5pt;margin-top:8px">Разрешите установку из неизвестных источников. Если Play Защита спросит — «Всё равно установить».</p>
+  </section>
+
+  <section class="page">
+    <h2>Сроки и стоимость</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Этап 1 · MVP + STOCRM</h3>
+        <div class="amount">175 000 ₽</div>
+        <p style="font-size:9pt;margin:0"><strong>2.5–3 недели</strong></p>
+        <ul style="font-size:9pt;margin-top:8px">
+          <li>Flutter UI iOS/Android</li>
+          <li>BFF, OTP, сессии</li>
+          <li>Гараж, филиалы, запись → сделка</li>
+          <li>История визитов, акции</li>
+          <li>Сборки TestFlight / Android</li>
+        </ul>
+      </div>
+      <div class="card featured">
+        <h3>Этап 2 · пакет «как FIT» ★</h3>
+        <div class="amount">+85 000 ₽</div>
+        <p style="font-size:9pt;margin:0"><strong>+1–1.5 недели</strong></p>
+        <ul style="font-size:9pt;margin-top:8px">
+          <li>Статус ЗН и push «готово»</li>
+          <li>Рекомендации / напоминание ТО</li>
+          <li>Чат в приложении</li>
+          <li>Бонусный баланс</li>
+          <li>Слоты постов — если API отдаёт календарь</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="price-block">
+      <div class="sum">Разработка «приложение + STOCRM + FIT»: 260 000 ₽</div>
+      <div class="note">~4 недели. Сторы, аккаунты и хостинг — отдельной сметой ниже. SMS и push — по факту тарифа оператора.</div>
+    </div>
+
+    <h3>Календарь пакета</h3>
+    <table>
+      <thead><tr><th>Недели</th><th>Работы</th></tr></thead>
+      <tbody>
+        <tr><td class="week">1</td><td>Карта API по SID, бренд UI, BFF, OTP, гараж, запись → сделка</td></tr>
+        <tr><td class="week">2</td><td>Филиалы, история, акции, полировка, тест на устройствах</td></tr>
+        <tr><td class="week">3</td><td>Приёмка MVP, TestFlight / APK</td></tr>
+        <tr><td class="week">4</td><td>Статусы, пуши, рекомендации, чат, бонусы; старт публикации в сторах</td></tr>
+      </tbody>
+    </table>
+
+    <div class="check-grid">
+      <div class="check-item">Запись с телефона создаёт сделку в вашей STOCRM</div>
+      <div class="check-item">Свой бренд в сторах, не GoodGarage</div>
+      <div class="check-item">SID не попадает в приложение</div>
+      <div class="check-item">Гараж и история у клиента 24/7</div>
+      <div class="check-item">Кликабельный прототип уже в комплекте</div>
+      <div class="check-item">Можно стартовать с этапа 1 без FIT-пакета</div>
+    </div>
+
+    <h3>Не входит в 260 000 ₽</h3>
+    <ul>
+      <li>Замена STOCRM, склад, зарплата, приложение для механиков</li>
+      <li>ОСАГО, партнёры АЗС, маркетплейс запчастей «как у федерального FIT»</li>
+      <li>Онлайн-оплата ЮKassa / чеки 54-ФЗ — отдельно после ТЗ на кассу</li>
+      <li>SMS OTP и push — по тарифу оператора / Firebase</li>
+    </ul>
+  </section>
+
+  <section class="page">
+    <h2>Аккаунты, публикация, хостинг</h2>
+    <p>Чтобы приложение появилось в сторах, нужны платные аккаунты разработчика и работа по модерации. Ниже — в стоимость первого года.</p>
+    <table>
+      <thead><tr><th>Позиция</th><th>Сумма</th><th>Что входит / примечание</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Apple Developer на год, с подпиской</td>
+          <td class="week">48 000 ₽</td>
+          <td>Регистрация аккаунта и годовая подписка. Продление со 2-го года — по тарифу Apple на тот момент (сейчас неизвестен).</td>
+        </tr>
+        <tr>
+          <td>Google Play</td>
+          <td class="week">2 500 ₽ + $30</td>
+          <td>Регистрация 2&nbsp;500&nbsp;₽ и подписка $30. <strong>Цена продления аккаунта через год неизвестна.</strong></td>
+        </tr>
+        <tr>
+          <td>Размещение в сторах</td>
+          <td class="week">30 000 ₽</td>
+          <td>Google Play (закрытое тестирование 14 дней) + App Store + RuStore: витрина, сборки, модерация, ответы ревьюерам.</td>
+        </tr>
+        <tr>
+          <td>Хостинг BFF / API</td>
+          <td class="week">700–1 000 ₽/мес</td>
+          <td>VPS в РФ. Оплата помесячно, не входит в пакет разработки.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="price-block">
+      <div class="sum">К выходу в сторы, 1-й год: 340 500 ₽ + $30</div>
+      <div class="note">260 000 разработка + 48 000 Apple + 2 500 Google + 30 000 публикация. Плюс $30 подписка Google и хостинг 700–1 000 ₽/мес. Продление аккаунтов со 2-го года в сумму не заложено.</div>
+    </div>
+
+    <div class="check-grid">
+      <div class="check-item">Google Play: 14 дней закрытого тестирования до витрины</div>
+      <div class="check-item">App Store и RuStore — модерация в том же пакете 30 тыс.</div>
+      <div class="check-item">Аккаунты оформляем на заказчика (его юрлицо / ИП)</div>
+      <div class="check-item">Хостинг можно начать с ~700 ₽/мес и вырастить при нагрузке</div>
+    </div>
+
+    <h3>Оплата</h3>
+    <ul>
+      <li>Разработка: 40% старт · 30% демо записи в STOCRM · 30% после сборок / этапа 2</li>
+      <li>Аккаунты Apple/Google — по факту выставления счетов сторов (до подачи)</li>
+      <li>30 000 ₽ за размещение — после готовности сборок, до/во время модерации</li>
+      <li>Хостинг — ежемесячно с момента запуска BFF</li>
+      <li>Гарантия 30 дней на баги своих модулей</li>
+    </ul>
+
+    <h3>Нужно от вас</h3>
+    <ul>
+      <li>SID и домен STOCRM, 1–2 тестовых контакта</li>
+      <li>Филиалы, услуги записи, логотип, название в сторах</li>
+      <li>Реквизиты ИП/ООО и документы для Apple Developer и Google Play</li>
+      <li>Политика ПДн и согласие на рассылку (черновик можем подготовить)</li>
+    </ul>
+
+    <div class="requisites">
+      <p><span class="label">Исполнитель</span> ИП Иванов А.В. · App72.ru</p>
+      <p><span class="label">Telegram</span> <a href="https://t.me/app154">https://t.me/app154</a></p>
+      <p><span class="label">Телефон</span> <a href="tel:+79139142994">+7 913 914-29-94</a></p>
+      <p><span class="label">Email</span> <a href="mailto:admin@qwerti.ru">admin@qwerti.ru</a></p>
+      <p><span class="label">Портфолио</span> <a href="https://app72.ru">https://app72.ru</a></p>
+      <p><span class="label">КП онлайн</span> <a href="https://app72.ru/projects/stocrm-mobile-app/kp.html">app72.ru/projects/stocrm-mobile-app/kp.html</a></p>
+      <p><span class="label">ТЗ</span> <a href="https://app72.ru/projects/stocrm-mobile-app/tz.html">tz.html</a></p>
+      <p><span class="label">APK 32-bit</span> <a href="https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing">Google Drive</a></p>
+      <p><span class="label">APK 64-bit</span> <a href="https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing">Google Drive</a></p>
+    </div>
+
+    <p class="footer-note">КП действительно 30 дней. Можно начать с MVP (175 тыс., 2.5–3 нед.) и подключить сценарии FIT следом. APK: <a href="https://drive.google.com/file/d/1akSQ_s5xSq5N9td4e2oz4JWI2opjJg7Z/view?usp=sharing">32-bit</a> · <a href="https://drive.google.com/file/d/16zUkimWyne_W9q33xZV8sn9JR1OXyfRW/view?usp=sharing">64-bit</a> · код входа 1234.</p>
+  </section>
+
+</body>
+</html>
