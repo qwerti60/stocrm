@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>План разработки — VAG Market / STOCRM</title>
+  <style>
+    :root {
+      --ink: #111111;
+      --muted: #4a4a4a;
+      --cream: #f3f3f3;
+      --paper: #ffffff;
+      --accent2: #e10613;
+      --ok: #0f7b3b;
+      --line: #dddddd;
+      --warn: #9a6b00;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10.5pt; line-height: 1.5; color: var(--ink); background: var(--cream); }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12mm; padding: 16mm 18mm 14mm; background: var(--paper); box-shadow: 0 4px 32px rgba(18, 20, 28, 0.08); page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+    .doc-head { border-bottom: 3px solid var(--accent2); padding-bottom: 12px; margin-bottom: 14px; }
+    .doc-head .badge { display: inline-block; font-size: 8pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; background: var(--accent2); padding: 3px 10px; border-radius: 999px; margin-bottom: 8px; }
+    .doc-head h1 { font-family: Georgia, serif; font-size: 16pt; line-height: 1.2; margin-bottom: 6px; }
+    .doc-head .sub { color: var(--muted); font-size: 10pt; }
+    .meta { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 12px 0 16px; }
+    .meta th, .meta td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+    .meta th { width: 28%; background: #111; color: #fff; }
+    h2 { font-family: Georgia, serif; font-size: 13pt; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--accent2); }
+    h3 { font-size: 10.5pt; font-weight: 700; margin: 12px 0 6px; }
+    p { margin-bottom: 8px; color: var(--muted); }
+    p strong, li strong { color: var(--ink); }
+    ol, ul { margin: 0 0 10px 18px; color: var(--muted); }
+    li { margin-bottom: 4px; }
+    table.data { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 8px 0 12px; }
+    table.data th, table.data td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: top; }
+    table.data th { background: #111; color: #fff; }
+    .note { background: #fde8ec; border-left: 4px solid var(--accent2); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+    .note p { color: var(--ink); margin: 0; font-size: 9.5pt; }
+    .ok { background: #ecfdf5; border-left: 4px solid var(--ok); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+    .ok p { color: var(--ink); margin: 0; font-size: 9.5pt; }
+    .warn { background: #fff8e6; border-left: 4px solid var(--warn); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+    .warn p { color: var(--ink); margin: 0; font-size: 9.5pt; }
+    .footer-note { font-size: 8.5pt; color: var(--muted); margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+    a { color: var(--accent2); }
+    code { font-size: 8.5pt; background: #f4f4f5; padding: 1px 5px; border-radius: 4px; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; }
+      table.data th, .meta th, .note, .ok, .warn, .doc-head .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="page">
+    <div class="doc-head">
+      <span class="badge">План разработки · 4 недели · договор № 10092026</span>
+      <h1>Поэтапный план клиентского приложения VAG Market</h1>
+      <p class="sub">Flutter iOS/Android + BFF + веб-админка · источник учёта — STOCRM Public API v1</p>
+    </div>
+
+    <table class="meta">
+      <tr><th>База</th><td>ТЗ v1.1 · Приложение № 2 договора: 175 000 ₽ (нед. 1–3) + 85 000 ₽ (нед. 4) = 260 000 ₽</td></tr>
+      <tr><th>Старт</th><td>Со дня поступления предоплаты 104 000 ₽ (40%). Без SID работы по CRM не начинаются.</td></tr>
+      <tr><th>Оплата</th><td>40% старт · 30% демо записи в боевую STOCRM · 30% до Акта и передачи сборок</td></tr>
+      <tr><th>API</th><td><a href="https://stocrm.ru/wiki/article/WIKI-A-587">Public API STOCRM</a> · <code>https://{домен}.stocrm.ru/api/external/v1/</code> · SID только на BFF</td></tr>
+      <tr><th>Хостинг</th><td>VPS РФ отдельно (ориентир DataCheap Medium Unlimited 650 ₽/мес). SMS OTP — по тарифу.</td></tr>
+    </table>
+
+    <div class="ok">
+      <p>Прототип экранов уже есть. Этапы ниже — перевод mock на боевой контур: BFF, STOCRM, пуши, админка, сторы.</p>
+    </div>
+    <div class="ok">
+      <p><strong>Факт 16.09.2026.</strong> Запись с тестового контакта создаёт сделку в воронке 1097 (демо: № 116944, «Неразобранное»). Документы: <a href="docs/index.html">docs/</a>. <strong>Следующий этап:</strong> неделя 2 — слоты календаря, история ЗН, push.</p>
+    </div>
+
+    <h2>0. День старта — входы от Заказчика</h2>
+    <p>Пока этого нет, календарь не тикает по CRM-задачам. Параллельно можно поднять VPS и каркас BFF.</p>
+    <div class="ok">
+      <p>Получено: SID, домен <code>vagnihaomarket.stocrm.ru</code>, доска 1097, тестовый телефон в CRM (без авто). Нет: <code>SOURCE_ID</code> «Онлайн-запись», лимиты слотов, правило бонусов, ролики шортсов.</p>
+    </div>
+    <ul>
+      <li><strong>SID и домен</strong> STOCRM, 1–2 тестовых контакта с телефоном и авто.</li>
+      <li>Воронка «онлайн-запись»: <code>BOARD_ID</code>, карта статусов, <code>SOURCE_ID</code> «Онлайн-запись» в кабинете.</li>
+      <li>Три филиала: адреса, график, телефоны, координаты, лимиты слотов по дням.</li>
+      <li>Правило бонусов (5%, срок сгорания, за сколько дней пуш) и сколько часов до визита можно менять заявку.</li>
+      <li>Политика ПДн, согласие на рассылку, ролики шортсов 9:16 (можно заглушки на 1–2 недели).</li>
+    </ul>
+
+    <h2>Карта Public API → наши задачи</h2>
+    <p>Источник: <a href="https://stocrm.ru/wiki/article/WIKI-A-587">WIKI-A-587</a>. GET с <code>SID</code> в query или POST JSON. Склад, инвентаризация, перемещения в продукт <strong>не входят</strong>.</p>
+    <table class="data">
+      <thead><tr><th>Задача приложения</th><th>Метод STOCRM</th><th>Как закрываем, если метода нет</th></tr></thead>
+      <tbody>
+        <tr><td>Клиент по телефону</td><td><code>contacts/get_from_filter</code> · <code>contact/get_info</code> · создание/изменение контакта</td><td>Новый номер — создаём контакт в CRM</td></tr>
+        <tr><td>Гараж</td><td><code>car_profile/get_filtered_profiles</code> (VIN, госномер, пробег)</td><td>Правки клиента пишем в CRM, если вендор открыл update; иначе — очередь менеджеру</td></tr>
+        <tr><td>Запись</td><td><code>offer/new</code> + <code>CONTACT_ID</code>, <code>BOARD_ID=1097</code>, <code>CAR_PROFILE_ID</code>, комментарий</td><td>Слоты: посты календаря есть; до подключения — график + подтверждение менеджером</td></tr>
+        <tr><td>История / статус ЗН</td><td><code>offers/get_from_filter</code> (не <code>offer/…</code>), <code>offer/all_statuses</code>, <code>work/get_filtered</code></td><td>Poller раз в 1–2 мин. Webhook — если вендор откроет по SID</td></tr>
+        <tr><td>Работы и запчасти</td><td><code>work/get_filtered</code>, каталог работ; товары склада — только поля сделки</td><td>Показываем то, что есть в ответе. Витрины склада клиенту нет</td></tr>
+        <tr><td>Бонусы 5%</td><td>поля <code>LOYALTY_*</code> в сделке помечены «не используется»</td><td>Свой журнал в PostgreSQL: 5% с закрытого ЗН</td></tr>
+        <tr><td>Чат, VIN-заявка, рассылки, шортсы</td><td>в Public API нет</td><td>Только наш BFF + админка + FCM/APNs</td></tr>
+      </tbody>
+    </table>
+    <div class="warn">
+      <p>Календарь постов на боевом SID есть: <code>calendar/post/get_filtered</code>, <code>calendar/card/get</code> (нужен <code>CUSTOMER_ID</code> филиала). Жёсткая блокировка слота в UI — неделя 2. Пока менеджер подтверждает в CRM.</p>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>Неделя 1 · каркас и запись в CRM · 175 000 ₽ (вместе с нед. 2–3)</h2>
+    <p>Цель недели: OTP, гараж, заявка на запись создаёт сделку в боевой STOCRM. Демо записи = вторая оплата 78 000 ₽.</p>
+    <table class="data">
+      <thead><tr><th>Дни</th><th>Работы</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td>1–2</td><td>VPS Ubuntu, nginx, PostgreSQL, BFF. Секрет SID только в env. Снять карту методов на тестовом SID: воронки, статусы, фильтр контакта по <code>MAIN_PHONE</code>, авто контакта, <code>offer/new</code>.</td><td>Таблица «метод → поля → дырки»</td></tr>
+        <tr><td>2–3</td><td>Перенос UI прототипа на API-клиент. OTP (SMS). Согласие 152-ФЗ. Сессия. Поиск контакта по +7; если нет — <code>contact/new</code>.</td><td>Вход реальным номером</td></tr>
+        <tr><td>3–4</td><td>Гараж: список авто CRM, пробег/VIN/госномер. Добавление авто. Шортсы (заглушки, пока нет роликов).</td><td>Гараж = данные STOCRM</td></tr>
+        <tr><td>4–5</td><td>Запись: авто → филиал → слот из графика. Текст «ожидайте подтверждения». Админка заявок. Параллельно <code>offer/new</code>.</td><td>Заявка в админке + сделка в воронке</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Критерий недели:</strong> с тестового телефона создаётся сделка с контактом, авто и комментарием. SID в APK нет.</p>
+
+    <h2>Неделя 2 · филиалы, история, статусы, push</h2>
+    <table class="data">
+      <thead><tr><th>Дни</th><th>Работы</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td>6–7</td><td>Три филиала, слоты по дням. Карта 2ГИС или Яндекс (один провайдер на старте недели).</td><td>Экран «Адреса»</td></tr>
+        <tr><td>7–9</td><td>Poller сделок контакта. История: только закрытые ЗН. Карточка: дата, филиал, пробег, работы, запчасти, сумма — в объёме API.</td><td>Сервисбук</td></tr>
+        <tr><td>9–10</td><td>Текущий статус: «в работе / выполнено / машина готова» + статусы воронки Заказчика. FCM/APNs. Push «Ваша машина готова!».</td><td>Смена статуса в CRM → пуш</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Критерий недели:</strong> закрытый тестовый ЗН виден в истории; смена статуса на «готово» даёт пуш.</p>
+
+    <h2>Неделя 3 · чат, VIN, бонусы, рекомендации, сборки</h2>
+    <table class="data">
+      <thead><tr><th>Дни</th><th>Работы</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td>11–12</td><td>Чат в приложении и админке. Клиенту видно имя менеджера. Push на ответ.</td><td>Переписка не через Telegram как канал</td></tr>
+        <tr><td>12–13</td><td>VIN-заявка менеджеру (не склад). Ответ в чате или звонком.</td><td>Заявка в админке</td></tr>
+        <tr><td>13–14</td><td>Бонусы 5% с закрытого ЗН, журнал, пуш за N дней до сгорания. Если лояльность CRM молчит — считаем сами.</td><td>Профиль с балансом</td></tr>
+        <tr><td>14–15</td><td>Рекомендации из CRM (невыполненные работы / советы ЗН). TestFlight + APK для Заказчика.</td><td>Сборки на тест</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Критерий недели:</strong> полный контур ТЗ без рассылок и виджета. Ядро 175 000 ₽ закрыто по составу.</p>
+  </section>
+
+  <section class="page">
+    <h2>Неделя 4 · рассылки, виджет, сторы · 85 000 ₽</h2>
+    <table class="data">
+      <thead><tr><th>Дни</th><th>Работы</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td>16–17</td><td>Массовый и сегментный push из админки (филиал, давно не был). Лента акций на главной = те же материалы. Загрузка роликов шортсов.</td><td>Тестовая рассылка на 2–3 устройства</td></tr>
+        <tr><td>17–18</td><td>Виджет Android + iOS: всё в порядке / пора на ТО / в сервисе / готова. Тап → нужный экран.</td><td>Виджет на рабочем столе</td></tr>
+        <tr><td>18–19</td><td>Поиск по своим авто и визитам; по услугам/филиалам — если API позволяет. Полировка UI под прототип.</td><td>Поиск в приложении</td></tr>
+        <tr><td>19–20</td><td>Скриншоты сторов, политика ПДн, публикация App Store / Google Play / RuStore на аккаунтах Исполнителя.</td><td>Модерация запущена</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Критерий недели:</strong> рассылка из админки, виджет, заявки в сторы. Третья оплата 78 000 ₽ — до Акта и передачи кода.</p>
+
+    <h2>Что делаем сами, без STOCRM</h2>
+    <ul>
+      <li>Сессии, OTP, согласия, токены пуш.</li>
+      <li>Слоты (график трёх филиалов), журнал заявок до подтверждения.</li>
+      <li>Чат, VIN-заявки, рассылки, шортсы, виджет.</li>
+      <li>Бонусный журнал, если <code>LOYALTY_*</code> по-прежнему «не используется».</li>
+    </ul>
+
+    <h2>Риски</h2>
+    <table class="data">
+      <thead><tr><th>Риск</th><th>Влияние</th><th>Что делаем</th></tr></thead>
+      <tbody>
+        <tr><td>SID задерживается</td><td>Неделя 1 без сделки</td><td>UI и админка на mock, календарь сдвигается</td></tr>
+        <tr><td>Нет фильтра контакта по телефону</td><td>Вход ломается</td><td>День 1–2: проверить <code>FILTER[MAIN_PHONE]</code>; иначе нормализация и перебор</td></tr>
+        <tr><td>В сделке нет работ/запчастей/пробега</td><td>Сервисбук беднее</td><td>Показываем доступные поля, фиксируем в акте</td></tr>
+        <tr><td>Нет webhook</td><td>Пуш со статусом с задержкой poller</td><td>Опрос 60–120 сек, для MVP достаточно</td></tr>
+        <tr><td>Нет роликов шортсов</td><td>Слайдер пустой</td><td>Бренд-заглушки, ролики Заказчика до недели 4</td></tr>
+        <tr><td>Модерация сторов</td><td>Публикация после Акта</td><td>В срок входит подача, не аппрув Apple/Google</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Демо и оплаты</h2>
+    <table class="data">
+      <thead><tr><th>Точка</th><th>Что показываем</th><th>Деньги</th></tr></thead>
+      <tbody>
+        <tr><td>Старт</td><td>Договор, прототип, этот план</td><td>104 000 ₽</td></tr>
+        <tr><td>Конец недели 1 / начало 2</td><td>Запись с телефона → сделка в STOCRM Заказчика</td><td>78 000 ₽</td></tr>
+        <tr><td>Конец недели 4</td><td>Сборки, исходный код, Акт. Сторы поданы</td><td>78 000 ₽</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <p>Изменение состава после подписания ТЗ — доп. соглашение, 2500 ₽/час. Доработки ядра STOCRM со стороны вендора в пакет не входят.</p>
+    </div>
+
+    <p class="footer-note">План от 16.09.2026. API: Public API v1. Карта на <code>vagnihaomarket.stocrm.ru</code> снята 16.09.2026. QA: <a href="docs/qa.html">docs/qa.html</a>.</p>
+  </section>
+
+</body>
+</html>

@@ -1,11 +1,11 @@
 {
-    "name": "stocrm_mobile_app",
-    "short_name": "stocrm_mobile_app",
+    "name": "VAG Market",
+    "short_name": "VAG Market",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B0B0D",
+    "theme_color": "#E10613",
+    "description": "Сервис, запчасти, забота о VAG. Клиентское приложение VAG Market.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

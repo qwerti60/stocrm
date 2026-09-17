@@ -1,0 +1,15 @@
+[Unit]
+Description=VAG Market BFF
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/vagmarket/server
+EnvironmentFile=/opt/vagmarket/server/.env
+ExecStart=/opt/vagmarket/server/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips=*
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

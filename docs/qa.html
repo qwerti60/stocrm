@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VAG Market QA — чеклист тестирования</title>
+  <style>
+    :root {
+      --ink: #0b0b0d; --muted: #5c5c64; --line: #e8e8ea; --bg: #f4f4f6; --card: #fff;
+      --accent: #e10613; --pass: #1b7a4e; --pass-bg: #e8f6ee;
+      --fail: #a12818; --fail-bg: #ffe8e4; --skip: #6b7280; --skip-bg: #f3f4f6;
+      --warn: #9a6b00;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.45; }
+    .top {
+      position: sticky; top: 0; z-index: 20; background: #0b0b0d; color: #fff;
+      padding: 1rem 1.1rem; box-shadow: 0 2px 12px rgba(0,0,0,.15);
+      border-bottom: 3px solid var(--accent);
+    }
+    .top h1 { margin: 0 0 .35rem; font-size: 1.2rem; }
+    .top p { margin: 0; opacity: .9; font-size: .88rem; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+      margin-top: .85rem;
+    }
+    .toolbar select, .toolbar button, .toolbar input {
+      font: inherit; padding: .4rem .65rem; border-radius: 8px; border: 0;
+    }
+    .toolbar button { cursor: pointer; font-weight: 700; background: #fff; color: var(--accent); }
+    .toolbar button.ghost { background: rgba(255,255,255,.12); color: #fff; }
+    .progress-wrap { margin-top: .75rem; }
+    .progress-bar {
+      height: 10px; background: rgba(255,255,255,.2); border-radius: 999px; overflow: hidden;
+    }
+    .progress-bar > i { display: block; height: 100%; background: var(--accent); width: 0%; transition: width .2s; }
+    .progress-meta { font-size: .85rem; margin-top: .35rem; opacity: .95; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 1rem 1rem 3rem; }
+    .stage {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      margin-bottom: 1rem; overflow: hidden;
+    }
+    .stage-head {
+      display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center;
+      padding: .85rem 1rem; background: #111; color: #fff; border-bottom: 1px solid var(--line);
+      cursor: pointer; user-select: none;
+    }
+    .stage-head h2 { margin: 0; font-size: 1rem; flex: 1; }
+    .stage-head .meta { color: #c8c8cc; font-size: .85rem; }
+    .badge {
+      font-size: .72rem; font-weight: 800; padding: .15rem .5rem; border-radius: 6px;
+      background: var(--pass-bg); color: var(--pass);
+    }
+    .badge.wip { background: #fff8e8; color: var(--warn); }
+    .badge.planned { background: #eeeef0; color: var(--skip); }
+    .stage-body { padding: .5rem .75rem 1rem; }
+    .test {
+      border: 1px solid var(--line); border-radius: 10px; padding: .75rem .85rem;
+      margin: .55rem 0; background: #fafafa;
+    }
+    .test.pass { border-color: #86efac; background: var(--pass-bg); }
+    .test.fail { border-color: #fca5a5; background: var(--fail-bg); }
+    .test.skip { border-color: #d1d5db; background: var(--skip-bg); opacity: .85; }
+    .test-id { font-family: ui-monospace, Menlo, monospace; font-size: .78rem; color: var(--muted); }
+    .test-title { font-weight: 700; margin: .15rem 0 .4rem; }
+    .steps { margin: .35rem 0; padding-left: 1.1rem; font-size: .9rem; color: var(--muted); }
+    .expect { font-size: .9rem; margin: .4rem 0; }
+    .expect strong { color: var(--pass); }
+    .actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+    .actions button {
+      border: 0; border-radius: 8px; padding: .4rem .7rem; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    .btn-pass { background: var(--pass); color: #fff; }
+    .btn-fail { background: var(--fail); color: #fff; }
+    .btn-skip { background: var(--skip); color: #fff; }
+    .btn-copy { background: #e5e7eb; color: #111; }
+    .test-notes {
+      display: none; width: 100%; margin-top: .5rem; min-height: 64px;
+      border: 1px solid #fca5a5; border-radius: 8px; padding: .5rem; font: inherit;
+    }
+    .test.fail .test-notes { display: block; }
+    .toast {
+      position: fixed; bottom: 16px; right: 16px; background: #111; color: #fff;
+      padding: .65rem 1rem; border-radius: 10px; font-size: .88rem; opacity: 0;
+      pointer-events: none; transition: opacity .2s; z-index: 50;
+    }
+    .toast.show { opacity: 1; }
+    a { color: var(--accent); }
+    .links { font-size: .85rem; margin-top: .35rem; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>VAG Market · QA чеклист</h1>
+    <p>✓ Pass · ✗ Fail (поле «Проблема» + копирование отчёта) · 📋 Copy · — Skip · прогресс в localStorage</p>
+    <div class="toolbar">
+      <label>Этап
+        <select id="filter-stage">
+          <option value="all">Все</option>
+        </select>
+      </label>
+      <label>Статус
+        <select id="filter-status">
+          <option value="all">Все</option>
+          <option value="unset">Не проверено</option>
+          <option value="pass">Pass</option>
+          <option value="fail">Fail</option>
+          <option value="skip">Skip</option>
+        </select>
+      </label>
+      <button type="button" id="btn-export">Export JSON</button>
+      <button type="button" id="btn-copy-fails" class="ghost">Copy все FAIL</button>
+      <button type="button" id="btn-reset" class="ghost">Сбросить всё</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><i id="bar"></i></div>
+      <div class="progress-meta" id="progress-meta">0 / 0</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <p class="links">
+      <a href="index.html">Хаб</a> ·
+      <a href="manager-guide.html">Гайд менеджеру</a> ·
+      <a href="user-guide.html">Клиенту</a> ·
+      <a href="DEVELOPMENT.md">Журнал / код</a> ·
+      Сборка: <code>cd prototype && flutter run</code> · BFF: <code>cd server && uvicorn app.main:app --port 8080</code>
+    </p>
+    <div id="root"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+const STORAGE_KEY = 'vagmarket_qa_v1';
+
+const STAGES = [
+  {
+    id: 's0',
+    title: 'S0 — Прототип UI (бренд)',
+    status: 'done',
+    setup: 'APK или flutter run · без BFF можно, мок',
+    tests: [
+      { id: 's0-001', title: 'Приложение запускается', steps: ['flutter run или открыть APK'], expect: 'Шортсы или вход, без краша, тема тёмная / красный #E10613' },
+      { id: 's0-002', title: 'Шортсы на старте', steps: ['Чистая установка / сброс shortsDone', 'Листать ролики', 'Дальше'], expect: 'После шортсов экран OTP' },
+      { id: 's0-003', title: 'Шесть вкладок после входа', steps: ['Код 1234, любой 10-значный номер если BFF нет'], expect: 'Главная · Гараж · Запись · Адреса · Чаты · Профиль' },
+      { id: 's0-004', title: 'Главная брендирована', steps: ['Открыть Главную'], expect: 'Лого/название VAG Market, красные акценты, не DRIVE STO' },
+      { id: 's0-005', title: 'Гараж / Запись / Адреса / Чат / Профиль открываются', steps: ['Пройти все вкладки'], expect: 'Нет белого экрана и exception' },
+      { id: 's0-006', title: 'Документы проекта', steps: ['Открыть docs/index.html', 'qa.html', 'manager-guide.html', 'user-guide.html', 'DEVELOPMENT.md'], expect: 'Страницы открываются' },
+    ],
+  },
+  {
+    id: 's1',
+    title: 'S1 — Неделя 1: BFF, OTP, CRM',
+    status: 'done',
+    setup: 'BFF на :8080, SID в server/.env · тест: +7 913 914-29-94 / код 1234 · CONTACT_ID 1240177 · доска 1097',
+    tests: [
+      { id: 's1-001', title: 'Health BFF', steps: ['curl http://127.0.0.1:8080/health'], expect: 'ok true, domain vagnihaomarket.stocrm.ru, sid_set true, board_id 1097. Самого SID в JSON нет' },
+      { id: 's1-002', title: 'Probe не падает на авторизации', steps: ['python probe.py в server/'], expect: 'base …/api/external/v1, контакты и авто ок. offer/get_from_filter не используется' },
+      { id: 's1-003', title: 'OTP запрос', steps: ['POST /v1/auth/otp/request {"phone":"9139142994"}'], expect: 'status sent, hint про 1234' },
+      { id: 's1-004', title: 'OTP неверный код', steps: ['confirm с кодом 0000'], expect: 'HTTP 400, без токена' },
+      { id: 's1-005', title: 'OTP верный — контакт из CRM', steps: ['confirm 1234 на 9139142994'], expect: 'found_in_crm true, contact_id 1240177, token есть' },
+      { id: 's1-006', title: 'Вход в приложении тем же номером', steps: ['BFF запущен', 'Ввести 9139142994', 'код 1234'], expect: 'Главная, без текста «поднимите BFF»' },
+      { id: 's1-007', title: 'Гараж с BFF', steps: ['После входа вкладка Гараж'], expect: 'Пустой список допустим (у контакта нет авто). Не краш. Не мок-номера чужих машин, если token жив' },
+      { id: 's1-008', title: 'Запись создаёт сделку в CRM', steps: ['Запись → подтвердить на тестовом аккаунте', 'Открыть доску 1097'], expect: 'Новая сделка Неразобранное, контакт 1240177, в комментарии «из приложения»' },
+      { id: 's1-009', title: 'Запись без контакта в CRM', steps: ['Номер, которого нет в CRM', 'код 1234', 'Запись'], expect: 'Вход есть; запись 409 или понятный отказ, без сделки-сироты' },
+      { id: 's1-010', title: 'SID не в клиенте', steps: ['Поиск STOCRM_SID и .stocrm.ru/api в prototype/'], expect: 'Нет ключа в Dart/APK. Только server/.env' },
+      { id: 's1-011', title: 'Филиалы API', steps: ['GET /v1/branches'], expect: 'Активные точки: VAG MARKET, NIN HAO MARKET, Bruno Detailing и др. Без ACTIVE=N' },
+      { id: 's1-012', title: '.env не в git', steps: ['git check-ignore server/.env'], expect: 'Файл игнорируется' },
+    ],
+  },
+  {
+    id: 's2',
+    title: 'S2 — Неделя 2: филиалы, история, статусы, push',
+    status: 'planned',
+    setup: 'После демо записи. Нужны 3 филиала в UI с графиками, poller сделок, FCM/APNs',
+    tests: [
+      { id: 's2-001', title: 'Адреса из CRM', steps: ['Вкладка Адреса при живом BFF'], expect: 'Названия совпадают с customers/get_filtered, не только мок' },
+      { id: 's2-002', title: 'Слоты по графику филиала', steps: ['Запись → выбрать день'], expect: 'Вне часов работы слотов нет. Текст «ожидайте подтверждения»' },
+      { id: 's2-003', title: 'История закрытых ЗН', steps: ['Профиль / визиты тестового контакта'], expect: 'Только закрытые; сумма/работы — если поля есть в API' },
+      { id: 's2-004', title: 'Статус текущей сделки', steps: ['В CRM сменить статус тестовой сделки', 'Обновить приложение'], expect: 'Статус в UI совпадает с воронкой (с задержкой poller до 2 мин)' },
+      { id: 's2-005', title: 'Push «машина готова»', steps: ['Статус → готово / успешно', 'устройство с FCM'], expect: 'Пуш пришёл, тап открывает статус' },
+      { id: 's2-006', title: 'Карта филиала', steps: ['Адреса → точка'], expect: '2ГИС или Яндекс, один провайдер' },
+    ],
+  },
+  {
+    id: 's3',
+    title: 'S3 — Неделя 3: чат, VIN, бонусы, сборки',
+    status: 'planned',
+    setup: 'Админка чата · журнал бонусов 5% · TestFlight/APK',
+    tests: [
+      { id: 's3-001', title: 'Чат клиент ↔ менеджер', steps: ['Написать из приложения', 'Ответить в админке'], expect: 'Сообщения с обеих сторон, имя менеджера видно клиенту' },
+      { id: 's3-002', title: 'Push на ответ в чате', steps: ['Ответ менеджера при свёрнутом приложении'], expect: 'Пуш пришёл' },
+      { id: 's3-003', title: 'VIN-заявка', steps: ['Экран VIN → отправить'], expect: 'Заявка в админке, не списание со склада' },
+      { id: 's3-004', title: 'Бонусы 5%', steps: ['Закрыть тестовый ЗН с суммой'], expect: 'Начисление 5% в профиле (свой журнал, если CRM loyalty молчит)' },
+      { id: 's3-005', title: 'Рекомендации', steps: ['Главная / рекомендации'], expect: 'Невыполненные работы из CRM или пустое состояние, не краш' },
+      { id: 's3-006', title: 'Сборки заказчику', steps: ['APK + TestFlight'], expect: 'Файлы отданы, вход тестовым номером работает' },
+    ],
+  },
+  {
+    id: 's4',
+    title: 'S4 — Неделя 4: рассылки, виджет, сторы',
+    status: 'planned',
+    setup: 'Пакет +85 000 ₽ · админка рассылок · виджет · модерация сторов',
+    tests: [
+      { id: 's4-001', title: 'Массовый push из админки', steps: ['Сегмент 2–3 тестовых устройства'], expect: 'Пуш дошёл, акция на главной = тот же материал' },
+      { id: 's4-002', title: 'Шортсы с роликами заказчика', steps: ['Загрузить 9:16 в админке'], expect: 'Слайдер на старте показывает ролики, не только заглушку' },
+      { id: 's4-003', title: 'Виджет Android/iOS', steps: ['Поставить виджет'], expect: 'Состояния: всё ок / пора на ТО / в сервисе / готова. Тап открывает экран' },
+      { id: 's4-004', title: 'Поиск по своим авто и визитам', steps: ['Поиск в приложении'], expect: 'Находит свои машины и записи' },
+      { id: 's4-005', title: 'Политика ПДн', steps: ['Ссылка в профиле / сторах'], expect: 'Документ открывается' },
+      { id: 's4-006', title: 'Подача в сторы', steps: ['App Store / Google Play / RuStore'], expect: 'Заявки отправлены с аккаунтов Исполнителя' },
+      { id: 's4-007', title: 'DoD недели 1–4', steps: ['Пройти scope в QA', 'SID не в клиенте', 'сделка из приложения в CRM'], expect: 'Критерии плана и ТЗ v1.1 закрыты или зафиксированы дырки API' },
+    ],
+  },
+];
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('Скопировано'); }
+  catch { toast('Не удалось скопировать'); }
+}
+
+function buildReport(test, stage, notes, status) {
+  return [
+    `[${status}] ${test.id} — ${test.title}`,
+    `Этап: ${stage.title}`,
+    `Шаги: ${test.steps.join(' → ')}`,
+    `Ожидание: ${test.expect}`,
+    notes ? `Проблема: ${notes}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function setStatus(id, status, notes) {
+  const s = loadState();
+  s[id] = { status, notes: notes ?? (s[id]?.notes || '') };
+  saveState(s);
+  render();
+}
+
+function stats() {
+  let total = 0, done = 0, fail = 0;
+  for (const st of STAGES) {
+    for (const t of st.tests) {
+      total++;
+      const cur = loadState()[t.id]?.status;
+      if (cur === 'pass' || cur === 'skip') done++;
+      if (cur === 'fail') { done++; fail++; }
+    }
+  }
+  return { total, done, fail };
+}
+
+function render() {
+  const root = document.getElementById('root');
+  const stageFilter = document.getElementById('filter-stage').value;
+  const statusFilter = document.getElementById('filter-status').value;
+  const state = loadState();
+  root.innerHTML = '';
+
+  STAGES.forEach((stage) => {
+    if (stageFilter !== 'all' && stageFilter !== stage.id) return;
+
+    const block = document.createElement('section');
+    block.className = 'stage';
+    const passed = stage.tests.filter((t) => state[t.id]?.status === 'pass').length;
+    const head = document.createElement('div');
+    head.className = 'stage-head';
+    const badgeClass = stage.status === 'wip' ? 'wip' : (stage.status === 'planned' ? 'planned' : '');
+    const badgeText = stage.status === 'wip' ? 'в работе' : stage.status === 'planned' ? 'план' : 'ok';
+    head.innerHTML = `
+      <h2>${stage.title}</h2>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+      <span class="meta">${passed}/${stage.tests.length} pass · ${stage.setup}</span>
+    `;
+    const body = document.createElement('div');
+    body.className = 'stage-body';
+
+    stage.tests.forEach((test) => {
+      const st = state[test.id]?.status || 'unset';
+      if (statusFilter !== 'all' && statusFilter !== st) return;
+
+      const item = document.createElement('div');
+      item.className = 'test' + (st !== 'unset' ? ' ' + st : '');
+      const notes = state[test.id]?.notes || '';
+      item.innerHTML = `
+        <div class="test-id">${test.id}</div>
+        <div class="test-title">${test.title}</div>
+        <ol class="steps">${test.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
+        <div class="expect"><strong>✓ Ожидание:</strong> ${test.expect}</div>
+        <div class="actions">
+          <button type="button" class="btn-pass">✓ Pass</button>
+          <button type="button" class="btn-fail">✗ Fail</button>
+          <button type="button" class="btn-skip">— Skip</button>
+          <button type="button" class="btn-copy">📋 Copy</button>
+        </div>
+        <textarea class="test-notes" placeholder="Описание проблемы (при Fail)">${notes.replace(/</g, '&lt;')}</textarea>
+      `;
+      item.querySelector('.btn-pass').onclick = () => setStatus(test.id, 'pass');
+      item.querySelector('.btn-fail').onclick = () => {
+        const ta = item.querySelector('.test-notes');
+        ta.style.display = 'block';
+        ta.focus();
+        setStatus(test.id, 'fail', ta.value);
+        copyText(buildReport(test, stage, ta.value, 'FAIL'));
+      };
+      item.querySelector('.btn-skip').onclick = () => setStatus(test.id, 'skip');
+      item.querySelector('.btn-copy').onclick = () => {
+        const ta = item.querySelector('.test-notes');
+        copyText(buildReport(test, stage, ta.value, st === 'pass' ? 'PASS' : (st === 'skip' ? 'SKIP' : 'FAIL')));
+      };
+      item.querySelector('.test-notes').oninput = (e) => {
+        const s = loadState();
+        s[test.id] = { ...(s[test.id] || {}), status: st === 'unset' ? 'fail' : st, notes: e.target.value };
+        saveState(s);
+      };
+      body.appendChild(item);
+    });
+
+    if (!body.children.length) return;
+    head.onclick = () => { body.style.display = body.style.display === 'none' ? '' : 'none'; };
+    block.appendChild(head);
+    block.appendChild(body);
+    root.appendChild(block);
+  });
+
+  const { total, done, fail } = stats();
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById('bar').style.width = pct + '%';
+  document.getElementById('progress-meta').textContent =
+    `${done} / ${total} (fail: ${fail}) · ${pct}%`;
+}
+
+(function initFilters() {
+  const sel = document.getElementById('filter-stage');
+  STAGES.forEach((s) => {
+    const o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = s.title;
+    sel.appendChild(o);
+  });
+  sel.onchange = render;
+  document.getElementById('filter-status').onchange = render;
+  document.getElementById('btn-reset').onclick = () => {
+    if (confirm('Сбросить весь прогресс QA?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      render();
+    }
+  };
+  document.getElementById('btn-export').onclick = () => {
+    copyText(JSON.stringify({ savedAt: new Date().toISOString(), state: loadState() }, null, 2));
+  };
+  document.getElementById('btn-copy-fails').onclick = () => {
+    const state = loadState();
+    const lines = [];
+    STAGES.forEach((stage) => {
+      stage.tests.forEach((t) => {
+        if (state[t.id]?.status === 'fail') {
+          lines.push(buildReport(t, stage, state[t.id].notes || '', 'FAIL'));
+          lines.push('---');
+        }
+      });
+    });
+    copyText(lines.length ? lines.join('\n') : 'Нет FAIL');
+  };
+  render();
+})();
+  </script>
+</body>
+</html>

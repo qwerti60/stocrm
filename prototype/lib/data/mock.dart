@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:stocrm_mobile_app/data/api.dart';
 
 class Vehicle {
   Vehicle({
@@ -71,7 +72,9 @@ class Visit {
     required this.when,
     required this.status,
     this.amount,
+    this.mileage,
     this.works = const [],
+    this.parts = const [],
   });
 
   final String id;
@@ -81,7 +84,17 @@ class Visit {
   final DateTime when;
   String status;
   final int? amount;
+  final int? mileage;
   final List<String> works;
+  final List<String> parts;
+}
+
+class BonusEvent {
+  BonusEvent({required this.title, required this.delta, required this.when, this.note});
+  final String title;
+  final int delta;
+  final DateTime when;
+  final String? note;
 }
 
 class RepairStep {
@@ -106,17 +119,22 @@ class ChatMessage {
 }
 
 class MockStore extends ChangeNotifier {
+  bool shortsDone = false;
   bool loggedIn = false;
   String phone = '+7 900 123-45-67';
   String clientName = 'Алексей';
   int bonus = 1840;
   String activeCarId = 'c1';
+  final api = ApiClient();
+  int? crmContactId;
+  bool crmLive = false;
+  bool foundInCrm = false;
 
   final branches = [
     Branch(
       id: 'b1',
-      name: 'DRIVE на Ленина',
-      address: 'ул. Ленина, 42',
+      name: 'VAG Market · Московский тракт',
+      address: 'ул. Московский тракт, 118/11',
       phone: '+7 345 268-00-11',
       hours: 'Пн–Сб 09:00–21:00',
       distanceKm: 1.8,
@@ -124,7 +142,7 @@ class MockStore extends ChangeNotifier {
     ),
     Branch(
       id: 'b2',
-      name: 'DRIVE Южный',
+      name: 'VAG Market · Юг',
       address: 'ул. Республики, 158',
       phone: '+7 345 268-00-22',
       hours: 'Ежедневно 08:00–22:00',
@@ -133,7 +151,7 @@ class MockStore extends ChangeNotifier {
     ),
     Branch(
       id: 'b3',
-      name: 'DRIVE Заречный',
+      name: 'VAG Market · Заречный',
       address: 'ул. Мельникайте, 70',
       phone: '+7 345 268-00-33',
       hours: 'Пн–Вс 09:00–20:00',
@@ -155,8 +173,8 @@ class MockStore extends ChangeNotifier {
     Vehicle(
       id: 'c1',
       plate: 'А 123 ВС 72',
-      make: 'Toyota',
-      model: 'Camry',
+      make: 'Volkswagen',
+      model: 'Tiguan',
       year: 2019,
       mileage: 86420,
       vin: 'JTNB11HK40K123456',
@@ -165,8 +183,8 @@ class MockStore extends ChangeNotifier {
     Vehicle(
       id: 'c2',
       plate: 'К 777 КК 72',
-      make: 'Kia',
-      model: 'Sportage',
+      make: 'Audi',
+      model: 'A4',
       year: 2021,
       mileage: 41200,
       nextServiceKm: 45000,
@@ -177,7 +195,7 @@ class MockStore extends ChangeNotifier {
     Visit(
       id: 'v1',
       serviceTitle: 'Замена масла',
-      branchName: 'DRIVE на Ленина',
+      branchName: 'VAG Market · Московский тракт',
       carPlate: 'А 123 ВС 72',
       when: DateTime.now().add(const Duration(days: 2, hours: 4)),
       status: 'подтверждена',
@@ -185,22 +203,26 @@ class MockStore extends ChangeNotifier {
     Visit(
       id: 'v2',
       serviceTitle: 'ТО-2 + тормоза',
-      branchName: 'DRIVE Южный',
+      branchName: 'VAG Market · Юг',
       carPlate: 'А 123 ВС 72',
       when: DateTime.now().subtract(const Duration(days: 86)),
       status: 'выполнен',
       amount: 24890,
-      works: ['Замена масла 5W-30', 'Фильтр салона', 'Колодки передние', 'Диагностика'],
+      mileage: 82100,
+      works: ['Замена масла 5W-30', 'Фильтр салона', 'Диагностика'],
+      parts: ['Колодки передние TRW', 'Фильтр масляный Mann'],
     ),
     Visit(
       id: 'v3',
       serviceTitle: 'Шиномонтаж',
-      branchName: 'DRIVE на Ленина',
+      branchName: 'VAG Market · Московский тракт',
       carPlate: 'К 777 КК 72',
       when: DateTime.now().subtract(const Duration(days: 140)),
       status: 'выполнен',
       amount: 2200,
+      mileage: 39800,
       works: ['Смена комплекта R17', 'Балансировка'],
+      parts: [],
     ),
   ];
 
@@ -209,7 +231,13 @@ class MockStore extends ChangeNotifier {
     RepairStep(title: 'Диагностика', at: DateTime.now().subtract(const Duration(hours: 4)), done: true, detail: 'Рекомендована замена колодок'),
     RepairStep(title: 'Ожидание запчастей', at: DateTime.now().subtract(const Duration(hours: 2)), done: true, detail: 'Колодки в пути, STOCRM'),
     RepairStep(title: 'Ремонт', at: DateTime.now().add(const Duration(hours: 1)), done: false, detail: 'Ориентир 17:30'),
-    RepairStep(title: 'Готов к выдаче', at: DateTime.now().add(const Duration(hours: 3)), done: false),
+    RepairStep(title: 'Готов к выдаче', at: DateTime.now().add(const Duration(hours: 3)), done: false, detail: 'Push: «Ваша машина готова!»'),
+  ];
+
+  final bonusLog = [
+    BonusEvent(title: 'Начисление 5%', delta: 1244, when: DateTime.now().subtract(const Duration(days: 86)), note: 'ЗН ТО-2 + тормоза'),
+    BonusEvent(title: 'Начисление 5%', delta: 110, when: DateTime.now().subtract(const Duration(days: 140)), note: 'Шиномонтаж'),
+    BonusEvent(title: 'Списание', delta: -486, when: DateTime.now().subtract(const Duration(days: 20)), note: 'Замена масла'),
   ];
 
   final promos = [
@@ -224,12 +252,15 @@ class MockStore extends ChangeNotifier {
   ];
 
   final chat = <ChatMessage>[
-    ChatMessage(fromStaff: true, text: 'Здравствуйте, Алексей! Это DRIVE СТО. Чем помочь?'),
+    ChatMessage(fromStaff: true, text: 'Здравствуйте! Это Егор, VAG Market. Чем помочь?'),
     ChatMessage(fromStaff: false, text: 'Можно записаться на замену масла завтра утром?'),
-    ChatMessage(fromStaff: true, text: 'Да. На Ленина свободно 10:00 и 11:30. Запись уйдёт в STOCRM как сделка «Онлайн-запись».'),
+    ChatMessage(fromStaff: true, text: 'Егор: да, на Московском тракте свободно 10:00 и 11:30. Подтвердим запись в админке.'),
   ];
 
-  Vehicle get activeCar => cars.firstWhere((c) => c.id == activeCarId, orElse: () => cars.first);
+  Vehicle? get activeCar {
+    if (cars.isEmpty) return null;
+    return cars.firstWhere((c) => c.id == activeCarId, orElse: () => cars.first);
+  }
 
   Visit? get nextVisit {
     final upcoming = visits.where((v) => v.when.isAfter(DateTime.now()) && v.status != 'отменена').toList()
@@ -242,14 +273,143 @@ class MockStore extends ChangeNotifier {
 
   List<Visit> get history => visits.where((v) => v.status == 'выполнен' || v.status == 'отменена').toList();
 
+  void finishShorts() {
+    shortsDone = true;
+    notifyListeners();
+  }
+
+  void sendVinRequest(String vin, String part) {
+    chat.add(ChatMessage(fromStaff: false, text: 'VIN $vin · $part'));
+    chat.add(ChatMessage(fromStaff: true, text: 'Егор: заявку на подбор получили, уточним наличие и напишем.'));
+    notifyListeners();
+  }
+
   void login(String value) {
     loggedIn = true;
     phone = value;
     notifyListeners();
   }
 
+  Future<void> requestOtp(String rawPhone) async {
+    await api.post('/v1/auth/otp/request', {'phone': rawPhone});
+  }
+
+  Future<void> loginRemote(String rawPhone, String code) async {
+    final res = await api.post('/v1/auth/otp/confirm', {'phone': rawPhone, 'code': code});
+    api.token = res['token'] as String?;
+    final cid = res['contact_id'];
+    crmContactId = cid is int ? cid : int.tryParse('$cid');
+    foundInCrm = res['found_in_crm'] == true;
+    crmLive = api.token != null;
+    clientName = (res['name'] as String?) ?? clientName;
+    loggedIn = true;
+    phone = rawPhone;
+    notifyListeners();
+    await Future.wait([refreshGarage(), refreshBranches(), refreshVisits()]);
+  }
+
+  Future<void> refreshGarage() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/garage');
+      final raw = res['cars'];
+      final mapped = <Vehicle>[];
+      if (raw is List) {
+        for (final item in raw) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item);
+          final id = '${m['id'] ?? m['CAR_PROFILE_ID'] ?? m['ID'] ?? mapped.length}';
+          if (id == '0' || id.isEmpty) continue;
+          mapped.add(Vehicle(
+            id: id,
+            plate: '${m['plate'] ?? m['LICENSE_PLATE'] ?? m['title'] ?? m['TITLE'] ?? ''}',
+            make: '${m['brand'] ?? m['MARK'] ?? m['BRAND'] ?? ''}',
+            model: '${m['model'] ?? m['MODEL'] ?? m['title'] ?? m['TITLE'] ?? 'авто'}',
+            year: int.tryParse('${m['year'] ?? m['YEAR'] ?? ''}') ?? 0,
+            mileage: int.tryParse('${m['mileage'] ?? m['MILEAGE'] ?? 0}') ?? 0,
+            vin: (m['vin'] ?? m['VIN'])?.toString(),
+          ));
+        }
+      }
+      cars = mapped;
+      activeCarId = mapped.isEmpty ? '' : mapped.first.id;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> refreshBranches() async {
+    try {
+      final res = await api.get('/v1/branches');
+      final raw = res['branches'];
+      if (raw is! List || raw.isEmpty) return;
+      final mapped = <Branch>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        final id = '${m['id'] ?? ''}';
+        if (id.isEmpty) continue;
+        mapped.add(Branch(
+          id: id,
+          name: '${m['name'] ?? ''}',
+          address: '${m['address'] ?? m['city'] ?? ''}',
+          phone: '${m['phone'] ?? ''}',
+          hours: '${m['work_time'] ?? ''}',
+          distanceKm: 0,
+          services: ['${m['city'] ?? 'Тюмень'}'],
+        ));
+      }
+      if (mapped.isNotEmpty) {
+        branches
+          ..clear()
+          ..addAll(mapped);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> refreshVisits() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/visits');
+      final raw = res['offers'];
+      if (raw is! List) return;
+      final mapped = <Visit>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        mapped.add(Visit(
+          id: '${m['id'] ?? mapped.length}',
+          serviceTitle: '${m['status'] ?? 'Заявка'}',
+          branchName: '${m['branch'] ?? ''}',
+          carPlate: '${m['car'] ?? ''}',
+          when: _parseTs(m['calendar_from'] ?? m['created']),
+          status: _visitStatus('${m['status'] ?? ''}'),
+          amount: int.tryParse('${m['sum'] ?? m['works_sum'] ?? ''}'),
+        ));
+      }
+      visits = mapped;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> bookRemote({required String comment, int? carId, String? branchId, String? when}) async {
+    if (api.token == null) {
+      throw ApiException(401, 'Нет сессии BFF');
+    }
+    return api.post('/v1/bookings', {
+      'comment': comment,
+      'car_id': carId,
+      'branch_id': branchId,
+      'when': when,
+    });
+  }
+
   void logout() {
     loggedIn = false;
+    crmLive = false;
+    foundInCrm = false;
+    crmContactId = null;
+    api.token = null;
     notifyListeners();
   }
 
@@ -264,13 +424,17 @@ class MockStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<DateTime> slotsFor(DateTime day) {
-    final base = DateTime(day.year, day.month, day.day, 9);
-    return List.generate(10, (i) => base.add(Duration(minutes: 60 * i))).where((t) => t.hour < 20).toList();
+  List<DateTime> slotsFor(DateTime day, {String? branchId}) {
+    final weekend = day.weekday >= 6;
+    final extra = branchId == 'b1' ? 0 : (branchId == 'b2' ? 1 : 2);
+    final count = (weekend ? 5 : 9) - extra;
+    final startHour = weekend ? 10 : 9;
+    final base = DateTime(day.year, day.month, day.day, startHour);
+    return List.generate(count.clamp(4, 10), (i) => base.add(Duration(minutes: 60 * i)));
   }
 
   void addVisit({
-    required ServiceItem service,
+    required String serviceTitle,
     required Branch branch,
     required DateTime when,
     required Vehicle car,
@@ -278,7 +442,7 @@ class MockStore extends ChangeNotifier {
     visits = [
       Visit(
         id: 'v${visits.length + 1}',
-        serviceTitle: service.title,
+        serviceTitle: serviceTitle,
         branchName: branch.name,
         carPlate: car.plate,
         when: when,
@@ -303,8 +467,30 @@ class MockStore extends ChangeNotifier {
     chat.add(ChatMessage(fromStaff: false, text: text));
     chat.add(ChatMessage(
       fromStaff: true,
-      text: 'Приняли. В боевой версии сообщение уйдёт мастеру-консультанту, заявка — в STOCRM.',
+      text: 'Егор: приняли, ответим в этом чате.',
     ));
     notifyListeners();
   }
+}
+
+DateTime _parseTs(dynamic v) {
+  if (v == null) return DateTime.now();
+  if (v is int) {
+    if (v > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(v);
+    return DateTime.fromMillisecondsSinceEpoch(v * 1000);
+  }
+  final n = int.tryParse('$v');
+  if (n != null) {
+    if (n > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(n);
+    if (n > 1000000000) return DateTime.fromMillisecondsSinceEpoch(n * 1000);
+  }
+  return DateTime.tryParse('$v') ?? DateTime.now();
+}
+
+String _visitStatus(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('успешн') || n.contains('выполнен')) return 'выполнен';
+  if (n.contains('отказ') || n.contains('мусор')) return 'отменена';
+  if (n.isEmpty) return 'ожидает подтверждения';
+  return name;
 }

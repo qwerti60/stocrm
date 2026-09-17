@@ -1,13 +1,9 @@
-# Dart / Flutter
-.dart_tool/
-.packages
-build/
-.flutter-plugins
-.flutter-plugins-dependencies
-*.iml
-
-# OS
+.env
+server/.env
+**/.venv/
+**/__pycache__/
+*.pyc
 .DS_Store
-
-# Local Android SDK path
-**/local.properties
+prototype/build/
+prototype/.dart_tool/
+.tools/

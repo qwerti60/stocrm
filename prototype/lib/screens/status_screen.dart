@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
+import 'package:stocrm_mobile_app/theme.dart';
 
 class StatusScreen extends StatelessWidget {
   const StatusScreen({super.key, required this.store});
@@ -11,30 +12,32 @@ class StatusScreen extends StatelessWidget {
     final df = DateFormat('d MMM, HH:mm', 'ru');
     final next = store.nextVisit;
     return Scaffold(
-      appBar: AppBar(title: const Text('Статус ремонта')),
+      appBar: AppBar(title: const Text('Статус автомобиля')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            color: const Color(0xFF0B1F33),
+            color: vagRed,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(store.activeCar.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                  Text(store.activeCar.plate, style: TextStyle(color: Colors.white.withValues(alpha: 0.8))),
+                  Text(store.activeCar?.title ?? 'Авто из заявки', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                  Text(store.activeCar?.plate ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
                   const SizedBox(height: 8),
                   Text(
-                    next == null ? 'Сейчас на посту: диагностика + колодки (демо)' : '${next.serviceTitle} · ${next.branchName}',
+                    next == null ? 'Сейчас: в работе (демо)' : '${next.serviceTitle} · ${next.branchName}',
                     style: const TextStyle(color: Colors.white),
                   ),
+                  const SizedBox(height: 6),
+                  const Text('в работе  →  выполнено  →  машина готова', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          const Text('Лента статусов заказ-наряда. В бою — из STOCRM / webhook.', style: TextStyle(height: 1.35)),
+          const Text('Смена статуса в STOCRM приходит push, для готовности — «Ваша машина готова!»', style: TextStyle(color: vagMuted, height: 1.35)),
           const SizedBox(height: 12),
           ...store.repairSteps.map((s) {
             return Padding(
@@ -42,17 +45,13 @@ class StatusScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    children: [
-                      Icon(s.done ? Icons.check_circle : Icons.radio_button_unchecked, color: s.done ? const Color(0xFF10B981) : const Color(0xFFEA580C)),
-                    ],
-                  ),
+                  Icon(s.done ? Icons.check_circle : Icons.radio_button_unchecked, color: s.done ? Colors.white : vagRed),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Card(
                       child: ListTile(
-                        title: Text(s.title, style: TextStyle(fontWeight: FontWeight.w700, color: s.done ? null : const Color(0xFFEA580C))),
-                        subtitle: Text('${df.format(s.at)}${s.detail != null ? '\n${s.detail}' : ''}'),
+                        title: Text(s.title, style: TextStyle(fontWeight: FontWeight.w700, color: s.done ? Colors.white : vagRed)),
+                        subtitle: Text('${df.format(s.at)}${s.detail != null ? '\n${s.detail}' : ''}', style: const TextStyle(color: vagMuted)),
                       ),
                     ),
                   ),

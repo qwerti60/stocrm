@@ -5,10 +5,12 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/auth_screen.dart';
 import 'package:stocrm_mobile_app/screens/book_screen.dart';
+import 'package:stocrm_mobile_app/screens/branches_screen.dart';
+import 'package:stocrm_mobile_app/screens/chat_screen.dart';
 import 'package:stocrm_mobile_app/screens/garage_screen.dart';
 import 'package:stocrm_mobile_app/screens/home_screen.dart';
 import 'package:stocrm_mobile_app/screens/profile_screen.dart';
-import 'package:stocrm_mobile_app/screens/visits_screen.dart';
+import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 Future<void> main() async {
@@ -26,7 +28,7 @@ class DriveStoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DRIVE СТО · STOCRM',
+      title: 'VAG Market',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       locale: const Locale('ru'),
@@ -55,6 +57,7 @@ class _RootScreenState extends State<RootScreen> {
   void initState() {
     super.initState();
     store.addListener(_onStore);
+    store.refreshBranches();
   }
 
   @override
@@ -68,6 +71,9 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!store.shortsDone) {
+      return ShortsScreen(onDone: store.finishShorts);
+    }
     if (!store.loggedIn) return AuthScreen(store: store);
     return ShellScreen(store: store);
   }
@@ -88,10 +94,15 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     final store = widget.store;
     final pages = [
-      HomeScreen(store: store, onOpenBook: () => setState(() => _index = 2)),
+      HomeScreen(
+        store: store,
+        onOpenBook: () => setState(() => _index = 2),
+        onOpenProfile: () => setState(() => _index = 5),
+      ),
       GarageScreen(store: store),
       BookScreen(store: store),
-      VisitsScreen(store: store),
+      BranchesScreen(store: store),
+      ChatScreen(store: store),
       ProfileScreen(store: store),
     ];
 
@@ -104,7 +115,8 @@ class _ShellScreenState extends State<ShellScreen> {
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Главная'),
           NavigationDestination(icon: Icon(Icons.directions_car_outlined), selectedIcon: Icon(Icons.directions_car), label: 'Гараж'),
           NavigationDestination(icon: Icon(Icons.event_available_outlined), selectedIcon: Icon(Icons.event_available), label: 'Запись'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Визиты'),
+          NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on), label: 'Адреса'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Чаты'),
           NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
         ],
       ),
