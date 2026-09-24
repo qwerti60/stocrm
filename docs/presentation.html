@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VAG Market — презентация приложения</title>
+  <style>
+    :root {
+      --red: #e10613;
+      --bg: #0b0b0d;
+      --card: #16161a;
+      --line: #2a2a2e;
+      --muted: #9a9a9a;
+      --txt: #f4f4f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--txt); font-family: "Segoe UI", system-ui, sans-serif; }
+    body { overflow: hidden; }
+    .deck { height: 100%; }
+    .slide {
+      display: none; height: 100%; padding: 4.5vh 5vw 8vh;
+      flex-direction: column; justify-content: center;
+    }
+    .slide.on { display: flex; }
+    .kicker { color: var(--red); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; font-size: .78rem; margin-bottom: .6rem; }
+    h1 { font-size: clamp(2rem, 4.4vw, 3.4rem); line-height: 1.08; font-weight: 800; letter-spacing: -.02em; }
+    h2 { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; margin-bottom: 1rem; }
+    .lead { color: var(--muted); font-size: clamp(1rem, 1.6vw, 1.25rem); max-width: 38rem; margin-top: 1rem; line-height: 1.45; }
+    .row { display: grid; grid-template-columns: 1.05fr .95fr; gap: 4vw; align-items: center; height: 100%; }
+    .phones { display: flex; gap: 1.2rem; justify-content: center; align-items: flex-end; }
+    .phone {
+      width: min(22vw, 240px); border-radius: 22px; overflow: hidden;
+      border: 1px solid var(--line); background: #000; box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    .phone img { display: block; width: 100%; height: auto; }
+    .phone.hero { width: min(26vw, 280px); }
+    ul.ticks { list-style: none; margin-top: 1.2rem; }
+    ul.ticks li { padding: .45rem 0 .45rem 1.7rem; position: relative; font-size: 1.12rem; color: #ddd; }
+    ul.ticks li::before { content: ""; position: absolute; left: 0; top: .7rem; width: .7rem; height: .7rem; background: var(--red); border-radius: 2px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.4rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 1.1rem 1.2rem; }
+    .card h3 { color: var(--red); font-size: .95rem; margin-bottom: .4rem; }
+    .card p { color: var(--muted); font-size: .95rem; line-height: 1.4; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-top: 1.2rem; }
+    .btn {
+      display: inline-block; margin: .5rem .6rem 0 0; padding: .75rem 1.2rem; border-radius: 999px;
+      background: var(--red); color: #fff; font-weight: 800; text-decoration: none;
+    }
+    .btn.ghost { background: transparent; border: 1px solid var(--line); }
+    nav.bar {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1.2rem; background: linear-gradient(180deg, transparent, #000 30%);
+      z-index: 5;
+    }
+    nav.bar button {
+      background: var(--card); color: #fff; border: 1px solid var(--line);
+      border-radius: 10px; padding: .4rem .8rem; font-weight: 700; cursor: pointer;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 8px; height: 8px; border-radius: 50%; background: #3a3a40; display: block; }
+    .dots i.on { background: var(--red); }
+    .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--red); z-index: 6; }
+    .cover { background: radial-gradient(ellipse 80% 70% at 90% 10%, rgba(225,6,19,.35), transparent 55%); }
+    .cover .brand { font-weight: 900; color: var(--red); font-size: clamp(2.4rem, 6vw, 4.6rem); letter-spacing: -.04em; line-height: .92; }
+    .meta { margin-top: 2rem; color: var(--muted); font-size: .92rem; }
+    .flow { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1.4rem; }
+    .flow span { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: .45rem .9rem; font-weight: 700; font-size: .92rem; }
+    .flow span em { color: var(--red); font-style: normal; }
+    @media (max-width: 900px) {
+      .row, .split, .grid3 { grid-template-columns: 1fr; }
+      .phones { justify-content: flex-start; overflow-x: auto; }
+      .phone, .phone.hero { width: 42vw; min-width: 150px; }
+      .slide { padding: 3vh 5vw 72px; justify-content: flex-start; overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="bar"></div>
+  <div class="deck" id="deck">
+
+    <section class="slide on cover">
+      <div>
+        <div class="kicker">Клиентское приложение · Тюмень</div>
+        <div class="brand">VAG<br>MARKET</div>
+        <p class="lead">Запись в сервис с телефона. Гараж, слоты, статус ремонта, чат и бонусы 5% — учёт в вашей STOCRM.</p>
+        <p class="meta">ИП Гоман П.И. · vagmarket72.ru · договор № 10092026 · сентябрь 2026</p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Зачем</div>
+        <h2>Клиент не звонит «есть ли окно?»</h2>
+        <div class="grid3">
+          <div class="card"><h3>Запись</h3><p>Авто → филиал → свободный слот календаря. Заявка сразу в воронку STOCRM.</p></div>
+          <div class="card"><h3>Статус</h3><p>Пока машина в работе — экран статуса. Когда готова — уведомление в приложении.</p></div>
+          <div class="card"><h3>Возврат</h3><p>Акции, бонусы 5% с закрытого заказ-наряда, чат с менеджером, подбор по VIN.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Сценарий</div>
+        <h2>От телефона до поста</h2>
+        <div class="flow">
+          <span>1. Телефон</span><span>2. Код на <em>email</em></span><span>3. Гараж из CRM</span>
+          <span>4. Филиал на карте</span><span>5. Слот</span><span>6. Сделка в STOCRM</span>
+        </div>
+        <ul class="ticks">
+          <li>Старые клиенты: если в карточке нет почты — приложение просит её один раз и пишет в CRM.</li>
+          <li>Новые: создаётся контакт, телефон остаётся ключом входа.</li>
+          <li>SID CRM в приложение не попадает: между телефоном и STOCRM стоит наш сервер.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Вход</div>
+          <h2>Код подтверждения на почту</h2>
+          <ul class="ticks">
+            <li>Телефон в формате как в STOCRM.</li>
+            <li>Код приходит письмом с ящика сервиса.</li>
+            <li>Дальше — гараж и история этого контакта.</li>
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phone"><img src="../screenshots/00-shorts.png" alt="Шортсы" /></div>
+          <div class="phone hero"><img src="../screenshots/01-auth.png" alt="Вход" /></div>
+          <div class="phone"><img src="../screenshots/01-auth-otp.png" alt="Код" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Главная</div>
+          <h2>Всё, что нужно за 10 секунд</h2>
+          <ul class="ticks">
+            <li>Поиск по услугам, филиалам, истории.</li>
+            <li>Текущая заявка и статус.</li>
+            <li>Запись, VIN, рекомендации из CRM.</li>
+            <li>Акции — те же, что рассылает админка.</li>
+          </ul>
+        </div>
+        <div class="phones"><div class="phone hero"><img src="../screenshots/02-home.png" alt="Главная" /></div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Гараж</div>
+          <h2>Машины из карточки клиента</h2>
+          <ul class="ticks">
+            <li>Список авто подтягивается из STOCRM.</li>
+            <li>Добавить — госномер, марка, VIN.</li>
+            <li>Убрать из приложения, если клиент больше не обслуживает авто.</li>
+          </ul>
+        </div>
+        <div class="phones"><div class="phone hero"><img src="../screenshots/03-garage.png" alt="Гараж" /></div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Запись</div>
+          <h2>Авто → филиал → слот</h2>
+          <ul class="ticks">
+            <li>Окна из календаря постов филиала.</li>
+            <li>Заявка в воронке «Неразобранное».</li>
+            <li>На экране: ждите подтверждения, не приезжайте сразу.</li>
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phone"><img src="../screenshots/04-book.png" alt="Услуги" /></div>
+          <div class="phone"><img src="../screenshots/09-booking-branch.png" alt="Филиал" /></div>
+          <div class="phone"><img src="../screenshots/10-booking-time.png" alt="Слот" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Адреса</div>
+          <h2>Филиалы с карты CRM</h2>
+          <ul class="ticks">
+            <li>Названия, телефоны, график — из юнитов STOCRM.</li>
+            <li>Пин на карте, если в карточке заполнена улица.</li>
+            <li>«Ближайший» по GPS. Маршрут — 2ГИС или Яндекс.</li>
+          </ul>
+        </div>
+        <div class="phones"><div class="phone hero"><img src="../screenshots/08-branches.png" alt="Адреса" /></div></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Сервис</div>
+          <h2>Пока машина в работе</h2>
+          <ul class="ticks">
+            <li>История закрытых заказ-нарядов.</li>
+            <li>Текущий статус из воронки.</li>
+            <li>Когда статус «готова» — баннер в приложении.</li>
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phone"><img src="../screenshots/05-visits.png" alt="Визиты" /></div>
+          <div class="phone hero"><img src="../screenshots/11-booking-confirm.png" alt="Заявка принята" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="row">
+        <div>
+          <div class="kicker">Связь и лояльность</div>
+          <h2>Чат, VIN, бонусы 5%</h2>
+          <ul class="ticks">
+            <li>Чат с менеджером — ответы из веб-админки.</li>
+            <li>VIN: подбор запчасти, не витрина склада.</li>
+            <li>5% с закрытого ЗН, журнал в профиле.</li>
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phone"><img src="../screenshots/07-chat.png" alt="Чат" /></div>
+          <div class="phone hero"><img src="../screenshots/06-profile.png" alt="Профиль" /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Менеджеру</div>
+        <h2>Админка рядом с STOCRM</h2>
+        <div class="split">
+          <div class="card"><h3>Чат и VIN</h3><p>Диалоги клиентов и заявки на подбор. Имя менеджера видит клиент в приложении.</p></div>
+          <div class="card"><h3>Рассылки</h3><p>Акция уходит в inbox и на главную. Сегмент: все, давно не был, филиал.</p></div>
+          <div class="card"><h3>Шортсы</h3><p>Ролики 9:16 на стартовом экране: добавить, править, убрать.</p></div>
+          <div class="card"><h3>Почта</h3><p>SMTP для кодов входа. Тестовое письмо из той же админки.</p></div>
+        </div>
+        <p class="lead" style="margin-top:1.2rem">Заявки на ремонт менеджер ведёт как раньше — в воронке STOCRM. Приложение их не подменяет.</p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Филиалы</div>
+        <h2>Точки из вашей CRM</h2>
+        <div class="grid3">
+          <div class="card"><h3>VAG MARKET</h3><p>Московский тракт, 118/11 · пин на карте</p></div>
+          <div class="card"><h3>NINHAO Дружбы 66</h3><p>ул. Дружбы, 66 · пин на карте</p></div>
+          <div class="card"><h3>Эрвье</h3><p>Эрвье 9 стр 5 · допишите улицу в CRM — появится пин</p></div>
+          <div class="card"><h3>VAG DTL Республика</h3><p>В списке. Для пина нужна улица в юните STOCRM</p></div>
+          <div class="card"><h3>NIN HAO MARKET</h3><p>В списке, координаты — когда заполнят адрес</p></div>
+          <div class="card"><h3>Bruno · Komfort</h3><p>Тоже из CRM, график и телефон уже в приложении</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Поставить на телефон</div>
+        <h2>APK уже на сервере</h2>
+        <p class="lead">Android. 64-bit — новые телефоны, 32-bit — старше (Galaxy A10 и подобные).</p>
+        <p style="margin-top:1.4rem">
+          <a class="btn" href="/apk/VAG-Market-64bit.apk">Скачать 64-bit</a>
+          <a class="btn ghost" href="/apk/VAG-Market-32bit.apk">Скачать 32-bit</a>
+          <a class="btn ghost" href="/admin/">Админка</a>
+        </p>
+        <p class="meta">http://45.81.33.7/apk/ · разрешить установку из браузера</p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div>
+        <div class="kicker">Дальше</div>
+        <h2>Что осталось с вашей стороны</h2>
+        <ul class="ticks">
+          <li>Улицы в карточках филиалов STOCRM — все точки встанут на карту.</li>
+          <li>Аккаунты App Store / Google Play / RuStore — подадим листинг.</li>
+          <li>Ключ Firebase — системный push «машина готова» на заблокированном экране.</li>
+          <li>Свой домен и HTTPS вместо IP.</li>
+        </ul>
+        <p class="meta">Исполнитель: ИП Иванов А.В. · t.me/app154 · admin@qwerti.ru</p>
+      </div>
+    </section>
+  </div>
+
+  <nav class="bar">
+    <button type="button" id="prev">←</button>
+    <div class="dots" id="dots"></div>
+    <div>
+      <span id="num" style="color:#9a9a9a;margin-right:12px;font-size:.85rem"></span>
+      <button type="button" id="next">→</button>
+    </div>
+  </nav>
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    const dots = document.getElementById("dots");
+    const bar = document.getElementById("bar");
+    const num = document.getElementById("num");
+    let i = 0;
+    slides.forEach((_, n) => {
+      const d = document.createElement("i");
+      d.onclick = () => go(n);
+      dots.appendChild(d);
+    });
+    function go(n) {
+      i = (n + slides.length) % slides.length;
+      slides.forEach((s, k) => s.classList.toggle("on", k === i));
+      [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i));
+      bar.style.width = ((i + 1) / slides.length * 100) + "%";
+      num.textContent = (i + 1) + " / " + slides.length;
+    }
+    document.getElementById("prev").onclick = () => go(i - 1);
+    document.getElementById("next").onclick = () => go(i + 1);
+    document.addEventListener("keydown", (e) => {
+      if (["ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); go(i + 1); }
+      if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(i - 1); }
+      if (e.key === "Home") go(0);
+      if (e.key === "End") go(slides.length - 1);
+    });
+    let x0 = null;
+    document.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+    document.addEventListener("touchend", (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1));
+      x0 = null;
+    });
+    go(0);
+  </script>
+</body>
+</html>

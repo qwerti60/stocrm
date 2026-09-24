@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Этапы 5–8 — VAG Market по STOCRM API</title>
+  <style>
+    :root { --ink:#0b0b0d; --muted:#5c5c64; --red:#e10613; --bg:#f4f4f6; --card:#fff; --line:#e8e8ea; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 1.5rem 1.1rem 3rem; }
+    header { background: #0b0b0d; color: #fff; padding: 1.5rem 1.3rem; border-radius: 14px; margin-bottom: 1.2rem; }
+    header h1 { margin: 0 0 .4rem; font-size: 1.35rem; }
+    header p { margin: 0; opacity: .88; }
+    h2 { color: var(--red); font-size: 1.15rem; margin: 1.6rem 0 .6rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; margin: .7rem 0; }
+    table { width: 100%; border-collapse: collapse; background: #fff; font-size: .92rem; }
+    th, td { text-align: left; padding: .5rem .65rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: #fafafa; }
+    code { background: #eeeef0; padding: .1rem .35rem; border-radius: 4px; font-size: .88em; }
+    .warn { background: #fff8e8; border-left: 4px solid #9a6b00; padding: .85rem 1rem; border-radius: 0 10px 10px 0; }
+    .ok { background: #f3faf4; border-left: 4px solid #1a7f37; padding: .85rem 1rem; border-radius: 0 10px 10px 0; }
+    ul { margin: .4rem 0 .2rem 1.1rem; }
+    a { color: var(--red); }
+    .muted { color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Следующие этапы по STOCRM Public API</h1>
+      <p>Недели 1–4 закрыты. Ниже — только то, что API уже умеет или что нужно пробить на вашем SID. Склад и онлайн-оплата не предлагаем.</p>
+    </header>
+
+    <div class="ok">
+      Уже в бою: контакт и OTP, гараж, <code>offer/new</code>, слоты по занятости постов, история и статусы, филиалы из <code>customers/get_filtered</code>, чат/VIN/бонусы 5% в BFF.
+    </div>
+
+    <h2>Этап 5 · Запись как в календаре CRM · 1.5–2 нед.</h2>
+    <div class="card">
+      <p>Сейчас слоты <strong>читаем</strong> (<code>calendar/card/get</code>, <code>calendar/post/get_filtered</code>), сделка падает в «Неразобранное», пост ставит приёмка. Wiki не описывает создание карточки поста.</p>
+      <ul>
+        <li><strong>День 1:</strong> probe на SID — <code>calendar/card/add</code> / <code>edit</code> / <code>deactivate</code>. Если метод есть — клиент бронирует окно, слот пропадает у других.</li>
+        <li>Если add нет — после подтверждения менеджером двигать воронку <code>offer/status/change</code> в «Записан в сервис» (WIKI-A-596). Клиенту STATUS_ID не отдаём.</li>
+        <li>Отмена из приложения: статус «Не приехал» / «Отказ» + <code>REASON_COMMENT</code>.</li>
+        <li><code>shift/get_filtered</code> (probe уже ок) — не предлагать слот, когда смена закрыта.</li>
+        <li><code>offer/new</code> + <code>PARENT_OFFER_ID</code> — «записаться на то же ТО».</li>
+        <li>Источник «Онлайн-запись»: завести <code>SOURCE_ID</code> в кабинете.</li>
+      </ul>
+    </div>
+
+    <h2>Этап 6 · Сервисная книжка 2.0 · 1.5 нед.</h2>
+    <div class="card">
+      <ul>
+        <li>Работы и запчасти <strong>этого ЗН</strong>: <code>work/get_filtered</code> и поля <code>WORKS</code>/<code>ORDERS</code> в карточке календаря — не витрина склада.</li>
+        <li>Пробег: <code>car/edit</code>, доп. свойства <code>cars/properties/add</code> → напоминание «пора ТО».</li>
+        <li>Имя в профиле: <code>contact/update</code> <code>FIRSTNAME</code>.</li>
+        <li>Реквизиты сервиса: <code>legal_entities/get_from_filter</code> (probe ок).</li>
+      </ul>
+    </div>
+
+    <h2>Этап 7 · Коммуникации · 1.5 нед.</h2>
+    <div class="card">
+      <ul>
+        <li>Системный push «машина готова» по тому же poller — нужен <code>FCM_SERVER_KEY</code>.</li>
+        <li>Wiki «Звонки»: лента «мы вам звонили» без внутренних номеров.</li>
+        <li>Сессии и чат сейчас в памяти/JSON — PostgreSQL, иначе рестарт сервера разлогинивает всех.</li>
+      </ul>
+    </div>
+
+    <h2>Этап 8 · Платформа · 1 нед. + ожидание аккаунтов</h2>
+    <div class="card">
+      <ul>
+        <li>Домен и HTTPS вместо IP.</li>
+        <li>Виджет iOS, когда будет Apple Developer.</li>
+        <li>Подача в сторы — листинг уже в <a href="store.html">store.html</a>.</li>
+        <li>Параллельно: улицы в карточках филиалов CRM (5 точек без <code>ADDRESS_JSON.STREET</code> — без пина).</li>
+      </ul>
+    </div>
+
+    <h2>Порядок</h2>
+    <table>
+      <thead><tr><th>Этап</th><th>Срок</th><th>Нужно от вас</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td>5. Календарь</td><td>1.5–2 нед.</td><td>SOURCE_ID, проба card/add</td><td>Слот бронируется или статус «Записан»</td></tr>
+        <tr><td>6. Книжка</td><td>1.5 нед.</td><td>—</td><td>Работы/детали ЗН, пробег, имя</td></tr>
+        <tr><td>7. Коммуникации</td><td>1.5 нед.</td><td>Ключ Firebase</td><td>Отмена, push на экран</td></tr>
+        <tr><td>8. Платформа</td><td>1 нед. + ожидание</td><td>Домен, сторы, Apple</td><td>HTTPS, iOS-виджет, витрины</td></tr>
+      </tbody>
+    </table>
+
+    <div class="warn" style="margin-top:1.2rem">
+      <strong>Не делаем:</strong> витрина склада (<code>offer/require/add</code>, <code>offer/order/add</code>, поступления, перемещения). Подбор детали — VIN-заявка менеджеру, как сейчас.
+    </div>
+    <p class="muted">Wiki WIKI-A-587 · кабинет vagnihaomarket.stocrm.ru · 23.09.2026. <a href="/">Документы</a> · <a href="/presentation.html">Презентация</a></p>
+  </div>
+</body>
+</html>

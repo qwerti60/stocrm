@@ -14,10 +14,14 @@ class HomeScreen extends StatefulWidget {
     required this.store,
     required this.onOpenBook,
     required this.onOpenProfile,
+    required this.onOpenGarage,
+    required this.onOpenBranches,
   });
   final MockStore store;
   final VoidCallback onOpenBook;
   final VoidCallback onOpenProfile;
+  final VoidCallback onOpenGarage;
+  final VoidCallback onOpenBranches;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,11 +29,42 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String q = '';
+  String? _shownAlert;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeAlert();
+  }
+
+  void _maybeAlert() {
+    final alert = widget.store.pendingReadyAlert;
+    if (alert == null || alert == _shownAlert) return;
+    _shownAlert = alert;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(alert),
+          action: SnackBarAction(
+            label: 'Статус',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store))),
+          ),
+        ),
+      );
+      widget.store.clearReadyAlert();
+    });
+  }
 
   List<_Hit> get _hits {
     if (q.trim().isEmpty) return const [];
     final n = q.toLowerCase();
     final out = <_Hit>[];
+    for (final c in widget.store.cars) {
+      if ('${c.title} ${c.plate} ${c.vin ?? ''} ${c.make} ${c.model}'.toLowerCase().contains(n)) {
+        out.add(_Hit('${c.title} · ${c.plate}', c.vin ?? 'гараж', widget.onOpenGarage));
+      }
+    }
     for (final s in widget.store.services) {
       if ('${s.title} ${s.subtitle}'.toLowerCase().contains(n)) {
         out.add(_Hit(s.title, s.subtitle, widget.onOpenBook));
@@ -37,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     for (final b in widget.store.branches) {
       if ('${b.name} ${b.address}'.toLowerCase().contains(n)) {
-        out.add(_Hit(b.name, b.address, widget.onOpenBook));
+        out.add(_Hit(b.name, b.address, widget.onOpenBranches));
       }
     }
     for (final v in widget.store.visits) {
@@ -53,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _maybeAlert();
     final store = widget.store;
     final next = store.nextVisit;
     final car = store.activeCar;
@@ -156,12 +192,35 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
                 const SizedBox(height: 12),
+                if (store.unreadNotes.isNotEmpty)
+                  Card(
+                    color: const Color(0xFF3A0A10),
+                    child: ListTile(
+                      leading: const Icon(Icons.notifications_active, color: vagRed),
+                      title: Text(store.unreadNotes.first.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(store.unreadNotes.first.body, style: const TextStyle(color: vagMuted, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        final note = store.unreadNotes.first;
+                        store.markNoteRead(note.id);
+                        final kind = note.kind ?? '';
+                        if (kind == 'chat') {
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
+                        } else if (kind == 'promo') {
+                          return;
+                        } else {
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store)));
+                        }
+                      },
+                    ),
+                  ),
+                if (store.unreadNotes.isNotEmpty) const SizedBox(height: 10),
                 _StatusCard(
                   carTitle: car?.title ?? 'Гараж пуст',
                   plate: car?.plate.isNotEmpty == true ? car!.plate : 'авто подтянется из CRM',
                   next: next,
                   kmLeft: kmLeft,
-                  onStatus: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store))),
+                  onStatus: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store, visit: next))),
                   onBook: widget.onOpenBook,
                 ),
                 const SizedBox(height: 10),
@@ -221,19 +280,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text('//  СПЕЦПРЕДЛОЖЕНИЯ', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.6)),
                     Spacer(),
-                    Text('Массовый push из админки', style: TextStyle(color: vagMuted, fontSize: 11)),
+                    Text('Те же материалы, что в рассылке', style: TextStyle(color: vagMuted, fontSize: 11)),
                   ],
                 ),
                 const SizedBox(height: 10),
-                const SizedBox(
+                SizedBox(
                   height: 148,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _OfferCard(title: 'Замена масла', price: 'от 4 990 ₽', note: 'Масло + фильтр + работа'),
-                        _OfferCard(title: 'Тормозные колодки', price: 'от 6 900 ₽', note: 'Оригинал / аналог'),
-                        _OfferCard(title: 'Замена ГРМ', price: 'от 14 900 ₽', note: 'Регламент VAG'),
+                        for (final p in store.promos)
+                          _OfferCard(title: p.title, price: p.badge, note: p.subtitle),
                       ],
                     ),
                   ),
@@ -370,9 +428,9 @@ class _WidgetPreview extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Виджет на главном экране', style: TextStyle(fontWeight: FontWeight.w800)),
+          Text('Виджет на главном экране Android', style: TextStyle(fontWeight: FontWeight.w800)),
           SizedBox(height: 4),
-          Text('Состояния: всё в порядке · пора на ТО · авто в сервисе · машина готова. Тап открывает запись / статус.', style: TextStyle(color: vagMuted, fontSize: 12, height: 1.35)),
+          Text('Долгое нажатие на иконку → Виджеты → VAG Market. Состояния: всё в порядке · пора на ТО · в сервисе · готова. Тап открывает запись или статус.', style: TextStyle(color: vagMuted, fontSize: 12, height: 1.35)),
         ],
       ),
     );

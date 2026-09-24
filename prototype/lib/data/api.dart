@@ -28,12 +28,21 @@ class ApiClient {
       };
 
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) async {
-    final r = await http.post(Uri.parse('$base$path'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 20));
+    final r = await http.post(Uri.parse('$base$path'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 40));
     return _decode(r);
   }
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final r = await http.get(Uri.parse('$base$path'), headers: _headers).timeout(const Duration(seconds: 20));
+  Future<Map<String, dynamic>> get(String path, {Map<String, String>? query}) async {
+    var uri = Uri.parse('$base$path');
+    if (query != null && query.isNotEmpty) {
+      uri = uri.replace(queryParameters: {...uri.queryParameters, ...query});
+    }
+    final r = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 40));
+    return _decode(r);
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final r = await http.delete(Uri.parse('$base$path'), headers: _headers).timeout(const Duration(seconds: 40));
     return _decode(r);
   }
 

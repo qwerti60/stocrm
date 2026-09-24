@@ -4,13 +4,16 @@ import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 class StatusScreen extends StatelessWidget {
-  const StatusScreen({super.key, required this.store});
+  const StatusScreen({super.key, required this.store, this.visit});
   final MockStore store;
+  final Visit? visit;
 
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM, HH:mm', 'ru');
-    final next = store.nextVisit;
+    final ready = store.visits.where((v) => v.isReady);
+    final current = visit ?? (ready.isEmpty ? store.nextVisit : ready.first);
+    final steps = (current?.steps.isNotEmpty == true) ? current!.steps : store.repairSteps;
     return Scaffold(
       appBar: AppBar(title: const Text('Статус автомобиля')),
       body: ListView(
@@ -23,23 +26,40 @@ class StatusScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(store.activeCar?.title ?? 'Авто из заявки', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                  Text(store.activeCar?.plate ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+                  Text(
+                    store.activeCar?.title ?? current?.carPlate ?? 'Авто из заявки',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  Text(store.activeCar?.plate ?? current?.carPlate ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
                   const SizedBox(height: 8),
                   Text(
-                    next == null ? 'Сейчас: в работе (демо)' : '${next.serviceTitle} · ${next.branchName}',
+                    current == null
+                        ? 'Нет открытой заявки в CRM'
+                        : '${current.status} · ${current.branchName}',
                     style: const TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 6),
-                  const Text('в работе  →  выполнено  →  машина готова', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(
+                    current?.isReady == true ? 'Ваша машина готова!' : 'в работе  →  выполнено  →  машина готова',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          const Text('Смена статуса в STOCRM приходит push, для готовности — «Ваша машина готова!»', style: TextStyle(color: vagMuted, height: 1.35)),
+          Text(
+            store.crmLive
+                ? 'Статус из воронки 1097. Poller раз в ~90 сек. Push «Ваша машина готова!» при Выполнен / Успешно / готов раньше.'
+                : 'Смена статуса в STOCRM приходит в приложение. Для готовности — «Ваша машина готова!»',
+            style: const TextStyle(color: vagMuted, height: 1.35),
+          ),
+          if (current?.works.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Text('Работы: ${current!.works.join(', ')}', style: const TextStyle(color: vagMuted)),
+          ],
           const SizedBox(height: 12),
-          ...store.repairSteps.map((s) {
+          ...steps.map((s) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
@@ -51,7 +71,10 @@ class StatusScreen extends StatelessWidget {
                     child: Card(
                       child: ListTile(
                         title: Text(s.title, style: TextStyle(fontWeight: FontWeight.w700, color: s.done ? Colors.white : vagRed)),
-                        subtitle: Text('${df.format(s.at)}${s.detail != null ? '\n${s.detail}' : ''}', style: const TextStyle(color: vagMuted)),
+                        subtitle: Text(
+                          '${s.at.year > 1971 ? df.format(s.at) : ''}${s.detail != null ? '\n${s.detail}' : ''}'.trim(),
+                          style: const TextStyle(color: vagMuted),
+                        ),
                       ),
                     ),
                   ),
@@ -59,6 +82,18 @@ class StatusScreen extends StatelessWidget {
               ),
             );
           }),
+          if (store.crmLive) ...[
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () async {
+                await store.testReadyPush();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ваша машина готова!')));
+                }
+              },
+              child: const Text('Проверить уведомление «машина готова»'),
+            ),
+          ],
         ],
       ),
     );

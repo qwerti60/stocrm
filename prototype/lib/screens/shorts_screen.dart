@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:stocrm_mobile_app/data/api.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 class BrandShort {
   const BrandShort({
     required this.title,
     required this.subtitle,
-    required this.gradient,
+    this.url = '',
+    this.gradient = const [Color(0xFF1A0508), Color(0xFFE10613)],
   });
   final String title;
   final String subtitle;
+  final String url;
   final List<Color> gradient;
 }
 
@@ -45,6 +48,52 @@ class ShortsScreen extends StatefulWidget {
 
 class _ShortsScreenState extends State<ShortsScreen> {
   int index = 0;
+  List<BrandShort> items = brandShorts;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await ApiClient().get('/v1/shorts');
+      final raw = res['items'];
+      if (raw is! List) return;
+      if (raw.isEmpty) {
+        if (mounted) {
+          setState(() {
+            items = const [
+              BrandShort(title: 'VAG Market', subtitle: 'Ролики появятся, когда менеджер добавит их в админке'),
+            ];
+          });
+        }
+        return;
+      }
+      final mapped = <BrandShort>[];
+      const grads = [
+        [Color(0xFF1A0508), Color(0xFFE10613)],
+        [Color(0xFF0B0B0D), Color(0xFF3D0A12)],
+        [Color(0xFF111111), Color(0xFF6B0F1A)],
+        [Color(0xFF0D0D10), Color(0xFF4A0C14)],
+      ];
+      var i = 0;
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final title = '${item['title'] ?? ''}';
+        if (title.isEmpty) continue;
+        mapped.add(BrandShort(
+          title: title,
+          subtitle: '${item['subtitle'] ?? ''}',
+          url: '${item['url'] ?? ''}',
+          gradient: grads[i % grads.length],
+        ));
+        i++;
+      }
+      if (mapped.isNotEmpty && mounted) setState(() => items = mapped);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,10 +103,10 @@ class _ShortsScreenState extends State<ShortsScreen> {
         children: [
           PageView.builder(
             scrollDirection: Axis.vertical,
-            itemCount: brandShorts.length,
+            itemCount: items.length,
             onPageChanged: (i) => setState(() => index = i),
             itemBuilder: (_, i) {
-              final s = brandShorts[i];
+              final s = items[i];
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -79,8 +128,12 @@ class _ShortsScreenState extends State<ShortsScreen> {
                         Text(s.title, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 1.15)),
                         const SizedBox(height: 8),
                         Text(s.subtitle, style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.35)),
+                        if (s.url.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(s.url, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                        ],
                         const SizedBox(height: 24),
-                        const Text('Листайте вверх · видео-шортсы', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                        const Text('Листайте вверх · шортсы из админки', style: TextStyle(color: Colors.white38, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -93,7 +146,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: Row(
                 children: [
-                  for (var i = 0; i < brandShorts.length; i++)
+                  for (var i = 0; i < items.length; i++)
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2),

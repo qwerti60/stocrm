@@ -23,6 +23,9 @@ class _BookingFlowState extends State<BookingFlow> {
   final commentCtrl = TextEditingController();
   bool sending = false;
   String? error;
+  List<SlotOption> crmSlots = [];
+  bool slotsLoading = false;
+  String? slotsHint;
 
   @override
   void initState() {
@@ -40,7 +43,10 @@ class _BookingFlowState extends State<BookingFlow> {
   }
 
   void next() {
-    if (step < 3) setState(() => step++);
+    if (step < 3) {
+      setState(() => step++);
+      if (step == 2) loadSlots();
+    }
   }
 
   void back() {
@@ -119,6 +125,24 @@ class _BookingFlowState extends State<BookingFlow> {
       ),
     );
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> loadSlots() async {
+    final b = branch;
+    if (b == null) return;
+    setState(() {
+      slotsLoading = true;
+      slotsHint = null;
+    });
+    final list = await widget.store.fetchSlots(day, b.id);
+    if (!mounted) return;
+    setState(() {
+      crmSlots = list;
+      slotsLoading = false;
+      slotsHint = widget.store.crmLive
+          ? 'Свободные окна по календарю постов филиала. После заявки ожидайте подтверждения.'
+          : 'Локальный график (BFF недоступен).';
+    });
   }
 
   @override
@@ -215,7 +239,7 @@ class _BookingFlowState extends State<BookingFlow> {
           children: widget.store.branches
               .map((b) => _choice(
                     selected: branch?.id == b.id,
-                    title: '${b.name}${b.distanceKm > 0 ? ' · ${b.distanceKm} км' : ''}',
+                    title: '${b.name}${b.distanceKm > 0 ? ' · ${b.distanceKm.toStringAsFixed(1)} км' : ''}',
                     subtitle: '${b.address}\n${b.hours}',
                     onTap: () => setState(() {
                       branch = b;
@@ -230,7 +254,7 @@ class _BookingFlowState extends State<BookingFlow> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Разное число слотов по дням и филиалам', style: TextStyle(color: vagMuted, fontSize: 12)),
+            Text(slotsHint ?? 'Окна по календарю филиала · вне часов слотов нет', style: const TextStyle(color: vagMuted, fontSize: 12)),
             const SizedBox(height: 10),
             SizedBox(
               height: 44,
@@ -244,27 +268,34 @@ class _BookingFlowState extends State<BookingFlow> {
                   return ChoiceChip(
                     label: Text(df.format(d)),
                     selected: on,
-                    onSelected: (_) => setState(() {
-                      day = d;
-                      slot = null;
-                    }),
+                    onSelected: (_) {
+                      setState(() {
+                        day = d;
+                        slot = null;
+                      });
+                      loadSlots();
+                    },
                   );
                 },
               ),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: widget.store.slotsFor(day, branchId: branch?.id).map((t) {
-                final on = slot == t;
-                return ChoiceChip(
-                  label: Text(DateFormat('HH:mm').format(t)),
-                  selected: on,
-                  onSelected: (_) => setState(() => slot = t),
-                );
-              }).toList(),
-            ),
+            if (slotsLoading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
+            if (!slotsLoading && crmSlots.isEmpty)
+              const Text('На этот день свободных окон нет — выберите другую дату.', style: TextStyle(color: vagMuted)),
+            if (!slotsLoading)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: crmSlots.map((s) {
+                  final on = slot == s.at;
+                  return ChoiceChip(
+                    label: Text(s.free > 1 ? '${s.label} · ${s.free}' : s.label),
+                    selected: on,
+                    onSelected: (_) => setState(() => slot = s.at),
+                  );
+                }).toList(),
+              ),
           ],
         );
       default:
@@ -314,6 +345,11 @@ class _BookingFlowState extends State<BookingFlow> {
               const SizedBox(height: 12),
               Text(error!, style: const TextStyle(color: vagRed)),
             ],
+            const SizedBox(height: 12),
+            const Text(
+              'После отправки ожидайте подтверждения звонка или сообщения. Слот не бронь поста до подтверждения приёмкой.',
+              style: TextStyle(color: vagMuted, fontSize: 12, height: 1.35),
+            ),
           ],
         );
     }

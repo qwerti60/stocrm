@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key, required this.store});
@@ -20,7 +21,10 @@ class ProfileScreen extends StatelessWidget {
             child: ListTile(
               leading: const CircleAvatar(backgroundColor: vagRed, child: Icon(Icons.person, color: Colors.white)),
               title: Text(store.clientName, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text('${store.phone} · STOCRM', style: const TextStyle(color: vagMuted)),
+              subtitle: Text(
+                store.email.isNotEmpty ? '${store.phone} · ${store.email}' : '${store.phone} · STOCRM',
+                style: const TextStyle(color: vagMuted),
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -30,10 +34,15 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Бонусы 5% с закрытого ЗН', style: TextStyle(color: Colors.white70)),
+                const Text('Бонусы 5% с успешно реализованных ЗН', style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 4),
                 Text('${store.bonus} ₽', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
-                const Text('Списание до 50% суммы · push за 5 дней до сгорания', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(
+                  store.crmLive
+                      ? 'Текущий остаток: сгоревшие баллы в сумму не входят'
+                      : 'Списание до 50% суммы · push за 5 дней до сгорания',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -42,9 +51,15 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
           ...store.bonusLog.map((e) => Card(
                 child: ListTile(
-                  title: Text(e.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  title: Text(
+                    e.expired ? 'Сгорело' : e.title,
+                    style: TextStyle(fontWeight: FontWeight.w700, color: e.expired ? vagMuted : null),
+                  ),
                   subtitle: Text('${df.format(e.when)} · ${e.note ?? ''}', style: const TextStyle(color: vagMuted)),
-                  trailing: Text(e.delta > 0 ? '+${e.delta}' : '${e.delta}', style: TextStyle(color: e.delta > 0 ? Colors.white : vagRed, fontWeight: FontWeight.w800)),
+                  trailing: Text(
+                    e.expired ? '0' : (e.delta > 0 ? '+${e.delta}' : '${e.delta}'),
+                    style: TextStyle(color: e.expired || e.delta < 0 ? vagRed : Colors.white, fontWeight: FontWeight.w800),
+                  ),
                 ),
               )),
           const SizedBox(height: 12),
@@ -65,7 +80,11 @@ class ProfileScreen extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
                 ),
                 const Divider(height: 1),
-                const ListTile(leading: Icon(Icons.privacy_tip_outlined), title: Text('Политика ПДн · 152-ФЗ')),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('Политика ПДн · 152-ФЗ'),
+                  onTap: () => launchUrl(Uri.parse(store.privacyUrl), mode: LaunchMode.externalApplication),
+                ),
               ],
             ),
           ),

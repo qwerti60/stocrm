@@ -13,10 +13,12 @@
 ## Документы
 
 - [docs/index.html](docs/index.html) — хаб: код, гайды, QA
+- [docs/presentation.html](docs/presentation.html) — презентация приложения (слайды)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — что сделано, карта API, следующий этап
 - [docs/manager-guide.html](docs/manager-guide.html) — менеджеру (приём заявок в CRM)
 - [docs/user-guide.html](docs/user-guide.html) — клиенту
-- [docs/qa.html](docs/qa.html) — чеклист тестирования (Pass/Fail как kitchenai)
+- [docs/privacy.html](docs/privacy.html) — политика ПДн (152-ФЗ)
+- [docs/store.html](docs/store.html) — листинг сторов
 - [tz.html](tz.html) — техническое задание
 - [kp.html](kp.html) — коммерческое предложение
 - [dogovor.html](dogovor.html) — договор (ИП Гоман П.И.)

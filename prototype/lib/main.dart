@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,11 +12,23 @@ import 'package:stocrm_mobile_app/screens/chat_screen.dart';
 import 'package:stocrm_mobile_app/screens/garage_screen.dart';
 import 'package:stocrm_mobile_app/screens/home_screen.dart';
 import 'package:stocrm_mobile_app/screens/profile_screen.dart';
+import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
+import 'package:stocrm_mobile_app/screens/status_screen.dart';
+import 'package:stocrm_mobile_app/screens/vin_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseBackground(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseBackground);
+  }
   if (kIsWeb) {
     WidgetsBinding.instance.ensureSemantics();
   }
@@ -91,6 +105,41 @@ class _ShellScreenState extends State<ShellScreen> {
   int _index = 0;
 
   @override
+  void didUpdateWidget(covariant ShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _openPending();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openPending());
+  }
+
+  void _openPending() {
+    final screen = widget.store.pendingScreen;
+    if (screen == null || screen.isEmpty) return;
+    widget.store.clearPendingScreen();
+    if (screen == 'garage') {
+      setState(() => _index = 1);
+    } else if (screen == 'book') {
+      setState(() => _index = 2);
+    } else if (screen == 'branches') {
+      setState(() => _index = 3);
+    } else if (screen == 'chat') {
+      setState(() => _index = 4);
+    } else if (screen == 'profile') {
+      setState(() => _index = 5);
+    } else if (screen == 'status') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store)));
+    } else if (screen == 'recommendations') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: widget.store)));
+    } else if (screen == 'vin') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: widget.store)));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = widget.store;
     final pages = [
@@ -98,6 +147,8 @@ class _ShellScreenState extends State<ShellScreen> {
         store: store,
         onOpenBook: () => setState(() => _index = 2),
         onOpenProfile: () => setState(() => _index = 5),
+        onOpenGarage: () => setState(() => _index = 1),
+        onOpenBranches: () => setState(() => _index = 3),
       ),
       GarageScreen(store: store),
       BookScreen(store: store),

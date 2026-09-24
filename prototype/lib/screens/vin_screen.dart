@@ -21,12 +21,19 @@ class _VinScreenState extends State<VinScreen> {
     super.dispose();
   }
 
-  void send() {
+  Future<void> send() async {
     if (vinCtrl.text.trim().length < 11 || partCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Укажите VIN и наименование запчасти')));
       return;
     }
-    widget.store.sendVinRequest(vinCtrl.text.trim(), partCtrl.text.trim());
+    try {
+      await widget.store.sendVinRemote(vinCtrl.text.trim(), partCtrl.text.trim());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return;
+    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Заявка ушла менеджеру. Ожидайте звонка или сообщения в чате.')),
     );

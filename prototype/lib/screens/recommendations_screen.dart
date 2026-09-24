@@ -16,6 +16,8 @@ class RecommendationsScreen extends StatelessWidget {
         children: [
           const Text('То, что мастер указал в CRM после осмотра. Не ручной контент приложения.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),
+          if (store.recommendations.isEmpty)
+            const Text('В CRM нет открытых рекомендаций — это нормально, не ошибка.', style: TextStyle(color: vagMuted)),
           ...store.recommendations.map(
             (r) => Card(
               margin: const EdgeInsets.only(bottom: 8),

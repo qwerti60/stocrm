@@ -7,3 +7,7 @@ server/.env
 prototype/build/
 prototype/.dart_tool/
 .tools/
+server/data/
+server/secrets/
+server/.vps-pass
+*.vps-pass

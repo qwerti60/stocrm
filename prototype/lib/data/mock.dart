@@ -1,4 +1,10 @@
+import 'dart:async';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/api.dart';
 
 class Vehicle {
@@ -34,6 +40,12 @@ class Branch {
     required this.hours,
     required this.distanceKm,
     required this.services,
+    this.mapsUrl,
+    this.yandexUrl,
+    this.lat,
+    this.lng,
+    this.precise = false,
+    this.city = '',
   });
 
   final String id;
@@ -43,6 +55,32 @@ class Branch {
   final String hours;
   final double distanceKm;
   final List<String> services;
+  final String? mapsUrl;
+  final String? yandexUrl;
+  final double? lat;
+  final double? lng;
+  final bool precise;
+  final String city;
+
+  bool get hasPoint => lat != null && lng != null;
+
+  String get distanceLabel => distanceKm > 0 ? '${distanceKm.toStringAsFixed(1)} км' : '';
+
+  Branch copyWith({double? distanceKm}) => Branch(
+        id: id,
+        name: name,
+        address: address,
+        phone: phone,
+        hours: hours,
+        distanceKm: distanceKm ?? this.distanceKm,
+        services: services,
+        mapsUrl: mapsUrl,
+        yandexUrl: yandexUrl,
+        lat: lat,
+        lng: lng,
+        precise: precise,
+        city: city,
+      );
 }
 
 class ServiceItem {
@@ -75,6 +113,11 @@ class Visit {
     this.mileage,
     this.works = const [],
     this.parts = const [],
+    this.statusId,
+    this.stage = '',
+    this.isReady = false,
+    this.isHistory = false,
+    this.steps = const [],
   });
 
   final String id;
@@ -87,14 +130,20 @@ class Visit {
   final int? mileage;
   final List<String> works;
   final List<String> parts;
+  final int? statusId;
+  final String stage;
+  final bool isReady;
+  bool isHistory;
+  final List<RepairStep> steps;
 }
 
 class BonusEvent {
-  BonusEvent({required this.title, required this.delta, required this.when, this.note});
+  BonusEvent({required this.title, required this.delta, required this.when, this.note, this.expired = false});
   final String title;
   final int delta;
   final DateTime when;
   final String? note;
+  final bool expired;
 }
 
 class RepairStep {
@@ -105,6 +154,23 @@ class RepairStep {
   final String? detail;
 }
 
+class AppNote {
+  AppNote({required this.id, required this.title, required this.body, this.offerId, this.read = false, this.kind});
+  final String id;
+  final String title;
+  final String body;
+  final String? offerId;
+  final String? kind;
+  bool read;
+}
+
+class SlotOption {
+  SlotOption({required this.at, required this.label, this.free = 1});
+  final DateTime at;
+  final String label;
+  final int free;
+}
+
 class Promo {
   Promo({required this.title, required this.subtitle, required this.badge});
   final String title;
@@ -113,50 +179,80 @@ class Promo {
 }
 
 class ChatMessage {
-  ChatMessage({required this.fromStaff, required this.text});
+  ChatMessage({required this.fromStaff, required this.text, this.staffName, this.kind});
   final bool fromStaff;
   final String text;
+  final String? staffName;
+  final String? kind;
 }
 
 class MockStore extends ChangeNotifier {
   bool shortsDone = false;
   bool loggedIn = false;
   String phone = '+7 900 123-45-67';
+  String email = '';
   String clientName = 'Алексей';
   int bonus = 1840;
+  List<BonusEvent> bonusLog = [
+    BonusEvent(title: 'Начисление 5%', delta: 1244, when: DateTime.now().subtract(const Duration(days: 86)), note: 'ЗН ТО-2 + тормоза'),
+    BonusEvent(title: 'Начисление 5%', delta: 110, when: DateTime.now().subtract(const Duration(days: 140)), note: 'Шиномонтаж'),
+    BonusEvent(title: 'Списание', delta: -486, when: DateTime.now().subtract(const Duration(days: 20)), note: 'Замена масла'),
+  ];
+  List<String> recommendations = [
+    'Пора ТО: через 3 580 км или в октябре',
+    'Колодки: рекомендована замена на прошлом визите',
+    'Сезон: запись на шиномонтаж открыта',
+  ];
+  String staffName = 'Егор';
   String activeCarId = 'c1';
   final api = ApiClient();
   int? crmContactId;
   bool crmLive = false;
   bool foundInCrm = false;
+  Timer? _poller;
+  List<AppNote> notes = [];
+  String? pendingReadyAlert;
 
   final branches = [
     Branch(
-      id: 'b1',
-      name: 'VAG Market · Московский тракт',
-      address: 'ул. Московский тракт, 118/11',
-      phone: '+7 345 268-00-11',
-      hours: 'Пн–Сб 09:00–21:00',
-      distanceKm: 1.8,
-      services: ['ТО', 'Диагностика', 'Шиномонтаж', 'Масло'],
+      id: '2113',
+      name: 'VAG MARKET',
+      address: 'Тюмень, ул. Московский тракт, 118/11',
+      phone: '+7 904 495-09-80',
+      hours: 'Пн–Пт 09:00–20:00, Сб–Вс 09:00–18:00',
+      distanceKm: 0,
+      lat: 57.125783,
+      lng: 65.468036,
+      precise: true,
+      city: 'Тюмень',
+      services: ['ТО', 'Диагностика', 'Шиномонтаж'],
+      mapsUrl: 'https://2gis.ru/geo/65.468036,57.125783',
+      yandexUrl: 'https://yandex.ru/maps/?pt=65.468036,57.125783&z=16&l=map',
     ),
     Branch(
-      id: 'b2',
-      name: 'VAG Market · Юг',
-      address: 'ул. Республики, 158',
-      phone: '+7 345 268-00-22',
-      hours: 'Ежедневно 08:00–22:00',
-      distanceKm: 4.3,
-      services: ['ТО', 'Кузов', 'Шиномонтаж'],
+      id: '6913',
+      name: 'NINHAO Дружбы 66',
+      address: 'Тюмень, ул. Дружбы, 66',
+      phone: '+7 904 457-98-88',
+      hours: '09:00–20:00',
+      distanceKm: 0,
+      lat: 57.184266,
+      lng: 65.559014,
+      precise: true,
+      city: 'Тюмень',
+      services: ['ТО', 'Шиномонтаж'],
+      mapsUrl: 'https://2gis.ru/geo/65.559014,57.184266',
+      yandexUrl: 'https://yandex.ru/maps/?pt=65.559014,57.184266&z=16&l=map',
     ),
     Branch(
-      id: 'b3',
-      name: 'VAG Market · Заречный',
-      address: 'ул. Мельникайте, 70',
-      phone: '+7 345 268-00-33',
-      hours: 'Пн–Вс 09:00–20:00',
-      distanceKm: 6.1,
-      services: ['Диагностика', 'Ходовая', 'Развал'],
+      id: '2109',
+      name: 'VAG DTL Республика',
+      address: 'Тюмень',
+      phone: '+7 345 257-98-88',
+      hours: '10:00–22:00',
+      distanceKm: 0,
+      city: 'Тюмень',
+      services: ['Детейлинг'],
     ),
   ];
 
@@ -211,6 +307,7 @@ class MockStore extends ChangeNotifier {
       mileage: 82100,
       works: ['Замена масла 5W-30', 'Фильтр салона', 'Диагностика'],
       parts: ['Колодки передние TRW', 'Фильтр масляный Mann'],
+      isHistory: true,
     ),
     Visit(
       id: 'v3',
@@ -223,6 +320,7 @@ class MockStore extends ChangeNotifier {
       mileage: 39800,
       works: ['Смена комплекта R17', 'Балансировка'],
       parts: [],
+      isHistory: true,
     ),
   ];
 
@@ -234,24 +332,15 @@ class MockStore extends ChangeNotifier {
     RepairStep(title: 'Готов к выдаче', at: DateTime.now().add(const Duration(hours: 3)), done: false, detail: 'Push: «Ваша машина готова!»'),
   ];
 
-  final bonusLog = [
-    BonusEvent(title: 'Начисление 5%', delta: 1244, when: DateTime.now().subtract(const Duration(days: 86)), note: 'ЗН ТО-2 + тормоза'),
-    BonusEvent(title: 'Начисление 5%', delta: 110, when: DateTime.now().subtract(const Duration(days: 140)), note: 'Шиномонтаж'),
-    BonusEvent(title: 'Списание', delta: -486, when: DateTime.now().subtract(const Duration(days: 20)), note: 'Замена масла'),
-  ];
-
-  final promos = [
+  List<Promo> promos = [
     Promo(title: '−20% на шиномонтаж', subtitle: 'До конца месяца, любой филиал', badge: 'Акция'),
     Promo(title: 'Бесплатная диагностика', subtitle: 'При записи на ТО через приложение', badge: 'В приложении'),
+    Promo(title: 'Замена масла', subtitle: 'от 4 990 ₽ · масло + фильтр + работа', badge: 'Акция'),
   ];
+  String? pendingScreen;
+  static const _widgetCh = MethodChannel('vagmarket/widget');
 
-  final recommendations = [
-    'Пора ТО: через 3 580 км или в октябре',
-    'Колодки: рекомендована замена на прошлом визите',
-    'Сезон: запись на шиномонтаж открыта',
-  ];
-
-  final chat = <ChatMessage>[
+  List<ChatMessage> chat = <ChatMessage>[
     ChatMessage(fromStaff: true, text: 'Здравствуйте! Это Егор, VAG Market. Чем помочь?'),
     ChatMessage(fromStaff: false, text: 'Можно записаться на замену масла завтра утром?'),
     ChatMessage(fromStaff: true, text: 'Егор: да, на Московском тракте свободно 10:00 и 11:30. Подтвердим запись в админке.'),
@@ -263,15 +352,19 @@ class MockStore extends ChangeNotifier {
   }
 
   Visit? get nextVisit {
-    final upcoming = visits.where((v) => v.when.isAfter(DateTime.now()) && v.status != 'отменена').toList()
-      ..sort((a, b) => a.when.compareTo(b.when));
-    return upcoming.isEmpty ? null : upcoming.first;
+    final open = visits.where((v) => !v.isHistory && v.status != 'отменена').toList()
+      ..sort((a, b) {
+        if (a.isReady != b.isReady) return a.isReady ? -1 : 1;
+        return a.when.compareTo(b.when);
+      });
+    return open.isEmpty ? null : open.first;
   }
 
-  List<Visit> get upcoming =>
-      visits.where((v) => v.status != 'выполнен' && v.status != 'отменена').toList();
+  List<Visit> get upcoming => visits.where((v) => !v.isHistory && v.status != 'отменена').toList();
 
-  List<Visit> get history => visits.where((v) => v.status == 'выполнен' || v.status == 'отменена').toList();
+  List<Visit> get history => visits.where((v) => v.isHistory || v.status == 'выполнен' || v.status == 'отменена').toList();
+
+  List<AppNote> get unreadNotes => notes.where((n) => !n.read).toList();
 
   void finishShorts() {
     shortsDone = true;
@@ -280,8 +373,84 @@ class MockStore extends ChangeNotifier {
 
   void sendVinRequest(String vin, String part) {
     chat.add(ChatMessage(fromStaff: false, text: 'VIN $vin · $part'));
-    chat.add(ChatMessage(fromStaff: true, text: 'Егор: заявку на подбор получили, уточним наличие и напишем.'));
+    chat.add(ChatMessage(fromStaff: true, text: 'Егор: заявку на подбор получили, уточним наличие и напишем.', staffName: 'Егор'));
     notifyListeners();
+  }
+
+  Future<void> sendVinRemote(String vin, String part) async {
+    if (api.token == null) {
+      sendVinRequest(vin, part);
+      return;
+    }
+    await api.post('/v1/vin', {'vin': vin, 'part': part});
+    await refreshChat();
+  }
+
+  Future<void> refreshChat() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/chat');
+      final sn = (res['staff_name'] as String?)?.trim();
+      if (sn != null && sn.isNotEmpty) staffName = sn;
+      final raw = res['messages'];
+      if (raw is! List) return;
+      chat = [
+        for (final item in raw)
+          if (item is Map)
+            ChatMessage(
+              fromStaff: item['from_staff'] == true,
+              text: '${item['text'] ?? ''}',
+              staffName: item['staff_name']?.toString(),
+              kind: item['kind']?.toString(),
+            ),
+      ];
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> sendChatRemote(String text) async {
+    if (api.token == null) {
+      sendChat(text);
+      return;
+    }
+    await api.post('/v1/chat', {'text': text});
+    await refreshChat();
+  }
+
+  Future<void> refreshBonuses() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/bonuses');
+      bonus = _toInt(res['balance']);
+      final raw = res['events'];
+      bonusLog = [
+        for (final item in raw is List ? raw : const [])
+          if (item is Map)
+              BonusEvent(
+                title: '${item['title'] ?? ''}',
+                delta: _toInt(item['delta']),
+                when: _parseTs(item['when']),
+                note: item['note']?.toString(),
+                expired: item['expired'] == true,
+              ),
+      ];
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> refreshRecommendations() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/recommendations');
+      final raw = res['items'];
+      if (raw is! List) return;
+      recommendations = [
+        for (final item in raw)
+          if (item is Map) '${item['title'] ?? ''}'
+          else if (item is String) item,
+      ].where((s) => s.isNotEmpty).toList();
+      notifyListeners();
+    } catch (_) {}
   }
 
   void login(String value) {
@@ -290,22 +459,134 @@ class MockStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> requestOtp(String rawPhone) async {
-    await api.post('/v1/auth/otp/request', {'phone': rawPhone});
+  Future<Map<String, dynamic>> lookupAuth(String rawPhone) async {
+    return api.post('/v1/auth/lookup', {'phone': rawPhone});
   }
 
-  Future<void> loginRemote(String rawPhone, String code) async {
-    final res = await api.post('/v1/auth/otp/confirm', {'phone': rawPhone, 'code': code});
+  Future<Map<String, dynamic>> requestOtp(String rawPhone, {String? email}) async {
+    return api.post('/v1/auth/otp/request', {
+      'phone': rawPhone,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+    });
+  }
+
+  Future<void> loginRemote(String rawPhone, String code, {String? email}) async {
+    final res = await api.post('/v1/auth/otp/confirm', {
+      'phone': rawPhone,
+      'code': code,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+    });
     api.token = res['token'] as String?;
     final cid = res['contact_id'];
     crmContactId = cid is int ? cid : int.tryParse('$cid');
     foundInCrm = res['found_in_crm'] == true;
     crmLive = api.token != null;
     clientName = (res['name'] as String?) ?? clientName;
+    this.email = '${res['email'] ?? email ?? this.email}';
     loggedIn = true;
     phone = rawPhone;
+    bonus = 0;
+    bonusLog = [];
     notifyListeners();
-    await Future.wait([refreshGarage(), refreshBranches(), refreshVisits()]);
+    startPolling();
+    await Future.wait([
+      refreshGarage(),
+      refreshBranches(),
+      refreshVisits(),
+      refreshNotes(),
+      refreshChat(),
+      refreshBonuses(),
+      refreshRecommendations(),
+      refreshPromos(),
+      registerPush(),
+    ]);
+    await syncWidget();
+    await consumeWidgetLaunch();
+  }
+
+  Future<void> registerPush() async {
+    if (api.token == null || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final token = await messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await api.post('/v1/devices', {'fcm_token': token});
+      }
+      messaging.onTokenRefresh.listen((next) {
+        if (api.token == null || next.isEmpty) return;
+        api.post('/v1/devices', {'fcm_token': next});
+      });
+    } catch (_) {}
+  }
+
+  void startPolling() {
+    _poller?.cancel();
+    _poller = Timer.periodic(const Duration(seconds: 90), (_) => pollNow());
+  }
+
+  Future<void> pollNow() async {
+    if (api.token == null) return;
+    final prev = {for (final v in visits) v.id: (v.status, v.isReady)};
+    final prevStaff = chat.where((m) => m.fromStaff).length;
+    await Future.wait([refreshVisits(), refreshNotes(), refreshChat(), refreshBonuses(), refreshRecommendations(), refreshPromos()]);
+    await syncWidget();
+    for (final v in visits) {
+      final old = prev[v.id];
+      if (old != null && !old.$2 && v.isReady) {
+        pendingReadyAlert = 'Ваша машина готова!';
+      }
+    }
+    if (unreadNotes.any((n) => n.title.contains('готова'))) {
+      pendingReadyAlert ??= 'Ваша машина готова!';
+    }
+    if (chat.where((m) => m.fromStaff).length > prevStaff) {
+      pendingReadyAlert ??= 'Новое сообщение от $staffName';
+    }
+    notifyListeners();
+  }
+
+  void clearReadyAlert() {
+    pendingReadyAlert = null;
+  }
+
+  Future<void> refreshNotes() async {
+    if (api.token == null) return;
+    try {
+      final res = await api.get('/v1/notifications');
+      final raw = res['items'];
+      if (raw is! List) return;
+      notes = [
+        for (final item in raw)
+          if (item is Map)
+            AppNote(
+              id: '${item['id'] ?? ''}',
+              title: '${item['title'] ?? ''}',
+              body: '${item['body'] ?? ''}',
+              offerId: item['offer_id']?.toString(),
+              read: item['read'] == true,
+              kind: item['kind']?.toString(),
+            ),
+      ];
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> markNoteRead(String id) async {
+    try {
+      await api.post('/v1/notifications/$id/read', {});
+    } catch (_) {}
+    for (final n in notes) {
+      if (n.id == id) n.read = true;
+    }
+    notifyListeners();
+  }
+
+  Future<void> testReadyPush() async {
+    await api.post('/v1/notifications/test', {});
+    await refreshNotes();
+    pendingReadyAlert = 'Ваша машина готова!';
+    notifyListeners();
   }
 
   Future<void> refreshGarage() async {
@@ -355,7 +636,15 @@ class MockStore extends ChangeNotifier {
           phone: '${m['phone'] ?? ''}',
           hours: '${m['work_time'] ?? ''}',
           distanceKm: 0,
-          services: ['${m['city'] ?? 'Тюмень'}'],
+          city: '${m['city'] ?? ''}',
+          lat: _coord(m['lat']),
+          lng: _coord(m['lng']),
+          precise: m['precise'] == true,
+          services: [
+            if ('${m['city'] ?? ''}'.trim().isNotEmpty) '${m['city']}',
+          ],
+          mapsUrl: (m['maps_url'] as String?)?.isNotEmpty == true ? '${m['maps_url']}' : null,
+          yandexUrl: (m['yandex_url'] as String?)?.isNotEmpty == true ? '${m['yandex_url']}' : null,
         ));
       }
       if (mapped.isNotEmpty) {
@@ -365,6 +654,49 @@ class MockStore extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  double? _coord(dynamic raw) {
+    if (raw == null) return null;
+    return double.tryParse('$raw');
+  }
+
+  Future<Branch?> locateNearest() async {
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        return null;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+      );
+      applyUserLocation(pos.latitude, pos.longitude);
+      final withDist = branches.where((b) => b.distanceKm > 0).toList();
+      if (withDist.isEmpty) return null;
+      withDist.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      return withDist.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void applyUserLocation(double lat, double lng) {
+    for (var i = 0; i < branches.length; i++) {
+      final b = branches[i];
+      if (!b.hasPoint) continue;
+      final meters = Geolocator.distanceBetween(lat, lng, b.lat!, b.lng!);
+      branches[i] = b.copyWith(distanceKm: meters / 1000);
+    }
+    branches.sort((a, b) {
+      if (a.distanceKm <= 0 && b.distanceKm <= 0) return a.name.compareTo(b.name);
+      if (a.distanceKm <= 0) return 1;
+      if (b.distanceKm <= 0) return -1;
+      return a.distanceKm.compareTo(b.distanceKm);
+    });
+    notifyListeners();
   }
 
   Future<void> refreshVisits() async {
@@ -385,10 +717,30 @@ class MockStore extends ChangeNotifier {
           when: _parseTs(m['calendar_from'] ?? m['created']),
           status: _visitStatus('${m['status'] ?? ''}'),
           amount: int.tryParse('${m['sum'] ?? m['works_sum'] ?? ''}'),
+          works: [
+            if (m['works'] is List)
+              for (final w in m['works'] as List) '$w',
+          ],
+          statusId: int.tryParse('${m['status_id'] ?? ''}'),
+          stage: '${m['stage'] ?? ''}',
+          isReady: m['is_ready'] == true,
+          isHistory: m['is_history'] == true || _visitStatus('${m['status'] ?? ''}') == 'выполнен' || _visitStatus('${m['status'] ?? ''}') == 'отменена',
+          steps: [
+            if (m['steps'] is List)
+              for (final s in m['steps'] as List)
+                if (s is Map)
+                  RepairStep(
+                    title: '${s['title'] ?? ''}',
+                    at: DateTime.now(),
+                    done: s['done'] == true,
+                    detail: s['detail']?.toString(),
+                  ),
+          ],
         ));
       }
       visits = mapped;
       notifyListeners();
+      await syncWidget();
     } catch (_) {}
   }
 
@@ -404,13 +756,94 @@ class MockStore extends ChangeNotifier {
     });
   }
 
+  String get privacyUrl {
+    final b = api.base;
+    if (b.isEmpty) return 'http://45.81.33.7/privacy.html';
+    return '$b/privacy.html';
+  }
+
+  Future<void> refreshPromos() async {
+    try {
+      final res = await api.get('/v1/promos');
+      final raw = res['items'];
+      if (raw is! List || raw.isEmpty) return;
+      final mapped = <Promo>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final title = '${item['title'] ?? ''}';
+        if (title.isEmpty) continue;
+        mapped.add(Promo(
+          title: title,
+          subtitle: '${item['subtitle'] ?? item['body'] ?? ''}',
+          badge: '${item['badge'] ?? 'Акция'}',
+        ));
+      }
+      if (mapped.isNotEmpty) {
+        promos = mapped;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> syncWidget() async {
+    if (kIsWeb) return;
+    Map<String, dynamic> payload = {
+      'state': 'ok',
+      'title': 'Всё в порядке',
+      'subtitle': 'VAG Market',
+      'screen': 'book',
+    };
+    try {
+      if (api.token != null) {
+        payload = Map<String, dynamic>.from(await api.get('/v1/widget'));
+      } else {
+        final vis = nextVisit;
+        final car = activeCar;
+        if (vis != null && vis.isReady) {
+          payload = {'state': 'ready', 'title': 'Машина готова', 'subtitle': vis.status, 'screen': 'status'};
+        } else if (vis != null) {
+          payload = {'state': 'service', 'title': 'Авто в сервисе', 'subtitle': vis.status, 'screen': 'status'};
+        } else if (car != null && car.nextServiceKm != null && car.mileage >= car.nextServiceKm!) {
+          payload = {'state': 'due', 'title': 'Пора на ТО', 'subtitle': car.title, 'screen': 'recommendations'};
+        }
+      }
+      await _widgetCh.invokeMethod('update', payload);
+    } catch (_) {}
+  }
+
+  Future<void> consumeWidgetLaunch() async {
+    if (kIsWeb) return;
+    try {
+      final screen = await _widgetCh.invokeMethod<String>('launchScreen');
+      if (screen != null && screen.isNotEmpty) {
+        pendingScreen = screen;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  void clearPendingScreen() {
+    pendingScreen = null;
+  }
+
   void logout() {
+    _poller?.cancel();
+    _poller = null;
     loggedIn = false;
     crmLive = false;
     foundInCrm = false;
     crmContactId = null;
+    email = '';
     api.token = null;
+    notes = [];
+    pendingReadyAlert = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _poller?.cancel();
+    super.dispose();
   }
 
   void setActiveCar(String id) {
@@ -424,6 +857,51 @@ class MockStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addCarRemote({
+    required String plate,
+    required String make,
+    required String model,
+    int year = 2020,
+    int mileage = 0,
+    String? vin,
+  }) async {
+    if (api.token == null) {
+      addCar(Vehicle(
+        id: 'c${cars.length + 1}',
+        plate: plate,
+        make: make,
+        model: model,
+        year: year,
+        mileage: mileage,
+        vin: vin,
+        nextServiceKm: mileage + 10000,
+      ));
+      return;
+    }
+    await api.post('/v1/garage', {
+      'plate': plate,
+      'make': make,
+      'model': model,
+      'year': year,
+      'mileage': mileage,
+      if (vin != null && vin.isNotEmpty) 'vin': vin,
+    });
+    await refreshGarage();
+  }
+
+  Future<void> deleteCarRemote(String id) async {
+    if (api.token != null) {
+      await api.delete('/v1/garage/$id');
+      await refreshGarage();
+      return;
+    }
+    cars = cars.where((c) => c.id != id).toList();
+    if (activeCarId == id) {
+      activeCarId = cars.isEmpty ? '' : cars.first.id;
+    }
+    notifyListeners();
+  }
+
   List<DateTime> slotsFor(DateTime day, {String? branchId}) {
     final weekend = day.weekday >= 6;
     final extra = branchId == 'b1' ? 0 : (branchId == 'b2' ? 1 : 2);
@@ -431,6 +909,29 @@ class MockStore extends ChangeNotifier {
     final startHour = weekend ? 10 : 9;
     final base = DateTime(day.year, day.month, day.day, startHour);
     return List.generate(count.clamp(4, 10), (i) => base.add(Duration(minutes: 60 * i)));
+  }
+
+  Future<List<SlotOption>> fetchSlots(DateTime day, String branchId) async {
+    final date = DateFormat('yyyy-MM-dd').format(day);
+    try {
+      final res = await api.get('/v1/slots', query: {'branch_id': branchId, 'date': date});
+      final raw = res['slots'];
+      if (raw is List) {
+        final out = <SlotOption>[];
+        for (final item in raw) {
+          if (item is! Map) continue;
+          final at = DateTime.tryParse('${item['at'] ?? ''}');
+          if (at == null) continue;
+          out.add(SlotOption(
+            at: at,
+            label: '${item['label'] ?? DateFormat('HH:mm').format(at)}',
+            free: int.tryParse('${item['free'] ?? 1}') ?? 1,
+          ));
+        }
+        return out;
+      }
+    } catch (_) {}
+    return [for (final t in slotsFor(day, branchId: branchId)) SlotOption(at: t, label: DateFormat('HH:mm').format(t))];
   }
 
   void addVisit({
@@ -457,6 +958,7 @@ class MockStore extends ChangeNotifier {
     for (final v in visits) {
       if (v.id == id && v.status != 'выполнен') {
         v.status = 'отменена';
+        v.isHistory = true;
         notifyListeners();
         return;
       }
@@ -471,6 +973,12 @@ class MockStore extends ChangeNotifier {
     ));
     notifyListeners();
   }
+}
+
+int _toInt(dynamic v) {
+  if (v is int) return v;
+  if (v is num) return v.round();
+  return int.tryParse('$v'.split('.').first) ?? 0;
 }
 
 DateTime _parseTs(dynamic v) {

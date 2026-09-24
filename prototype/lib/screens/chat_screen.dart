@@ -12,63 +12,87 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final ctrl = TextEditingController();
+  bool sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStore);
+    widget.store.refreshChat();
+  }
 
   @override
   void dispose() {
+    widget.store.removeListener(_onStore);
     ctrl.dispose();
     super.dispose();
   }
 
-  void send() {
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> send() async {
     final t = ctrl.text.trim();
-    if (t.isEmpty) return;
-    widget.store.sendChat(t);
+    if (t.isEmpty || sending) return;
+    setState(() => sending = true);
     ctrl.clear();
-    setState(() {});
+    try {
+      await widget.store.sendChatRemote(t);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+    if (mounted) setState(() => sending = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final staff = widget.store.staffName;
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Чат с сервисом'),
-            Text('Менеджер: Егор', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: vagMuted)),
+            const Text('Чат с сервисом'),
+            Text('Менеджер: $staff', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: vagMuted)),
           ],
         ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.store.chat.length,
-              itemBuilder: (_, i) {
-                final m = widget.store.chat[i];
-                final staff = m.fromStaff;
-                return Align(
-                  alignment: staff ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    decoration: BoxDecoration(
-                      color: staff ? vagCard : vagRed,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (staff) const Text('Егор', style: TextStyle(color: vagRed, fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text(m.text, style: const TextStyle(color: Colors.white, height: 1.35)),
-                      ],
-                    ),
+            child: widget.store.chat.isEmpty
+                ? const Center(child: Text('Напишите менеджеру — ответ придёт сюда', style: TextStyle(color: vagMuted)))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: widget.store.chat.length,
+                    itemBuilder: (_, i) {
+                      final m = widget.store.chat[i];
+                      final staffMsg = m.fromStaff;
+                      return Align(
+                        alignment: staffMsg ? Alignment.centerLeft : Alignment.centerRight,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          decoration: BoxDecoration(
+                            color: staffMsg ? vagCard : vagRed,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (staffMsg)
+                                Text(m.staffName?.isNotEmpty == true ? m.staffName! : staff, style: const TextStyle(color: vagRed, fontSize: 11, fontWeight: FontWeight.w700)),
+                              Text(m.text, style: const TextStyle(color: Colors.white, height: 1.35)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           SafeArea(
             child: Padding(
@@ -83,7 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filled(onPressed: send, icon: const Icon(Icons.send), style: IconButton.styleFrom(backgroundColor: vagRed)),
+                  IconButton.filled(onPressed: sending ? null : send, icon: const Icon(Icons.send), style: IconButton.styleFrom(backgroundColor: vagRed)),
                 ],
               ),
             ),

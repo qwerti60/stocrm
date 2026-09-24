@@ -17,6 +17,10 @@ PAGES = {
     "/tz.html": "tz.html",
     "/kp.html": "kp.html",
     "/dogovor.html": "dogovor.html",
+    "/privacy.html": "docs/privacy.html",
+    "/store.html": "docs/store.html",
+    "/presentation.html": "docs/presentation.html",
+    "/roadmap.html": "docs/roadmap.html",
 }
 
 

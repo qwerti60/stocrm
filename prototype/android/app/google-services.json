@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "162040307823",
+    "project_id": "stocrm-edf31",
+    "storage_bucket": "stocrm-edf31.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:162040307823:android:c136b6ed75421e41856d9a",
+        "android_client_info": {
+          "package_name": "ru.app72.stocrm_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYKgLqQKbQ961aoGu2rM8P6CsuBRqeK84"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

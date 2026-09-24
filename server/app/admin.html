@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Админка · VAG Market</title>
+  <style>
+    :root { --bg:#0b0b0d; --card:#16161a; --line:#2a2a2e; --red:#e10613; --muted:#8a8a92; --txt:#fff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--txt); }
+    header { padding: 1rem 1.2rem; border-bottom: 1px solid var(--line); display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    header h1 { margin: 0; font-size: 1.1rem; letter-spacing: .04em; }
+    header span { color: var(--red); font-weight: 800; }
+    .tabs { display: flex; gap: .4rem; }
+    .tabs button { background: var(--card); color: var(--txt); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .8rem; cursor: pointer; }
+    .tabs button.on { background: var(--red); border-color: var(--red); }
+    .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 56px); }
+    @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+    aside, main { padding: 1rem; }
+    aside { border-right: 1px solid var(--line); }
+    .thread, .vin, .camp { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .7rem .8rem; margin-bottom: .5rem; cursor: pointer; }
+    .thread.on { border-color: var(--red); }
+    .muted { color: var(--muted); font-size: .82rem; }
+    .msg { max-width: 520px; margin: .4rem 0; padding: .7rem .9rem; border-radius: 12px; }
+    .staff { background: var(--card); }
+    .client { background: #3a0a10; margin-left: auto; }
+    .name { color: var(--red); font-size: .75rem; font-weight: 700; }
+    form { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }
+    input, textarea, select { background: var(--card); border: 1px solid var(--line); color: #fff; border-radius: 8px; padding: .6rem .7rem; }
+    textarea { width: 100%; min-height: 80px; }
+    button { background: var(--red); color: #fff; border: 0; border-radius: 8px; padding: .6rem 1rem; font-weight: 700; cursor: pointer; }
+    .gate { max-width: 360px; margin: 4rem auto; background: var(--card); padding: 1.4rem; border-radius: 12px; }
+    h2 { font-size: .95rem; margin: 1.2rem 0 .5rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    #log { min-height: 240px; }
+    .pane { display: none; padding: 1rem 1.2rem 2rem; }
+    .pane.on { display: block; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+    @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+    label { display: block; font-size: .8rem; color: var(--muted); margin: .5rem 0 .25rem; }
+    .ok { color: #7dcea0; }
+    .ghost { background: transparent; border: 1px solid var(--line); color: var(--txt); }
+    .danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+    .row-btns { display: flex; gap: .4rem; margin-top: .55rem; }
+    .row-btns button { padding: .35rem .7rem; font-size: .82rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span>VAG MARKET</span> · админка</h1>
+    <span class="muted" id="who"></span>
+    <nav class="tabs" id="tabs" hidden>
+      <button class="on" data-tab="chat" onclick="tab('chat')">Чат и VIN</button>
+      <button data-tab="push" onclick="tab('push')">Рассылки</button>
+      <button data-tab="shorts" onclick="tab('shorts')">Шортсы</button>
+      <button data-tab="smtp" onclick="tab('smtp')">Почта</button>
+    </nav>
+  </header>
+  <div class="gate" id="gate">
+    <p>Пароль админки (ADMIN_PASSWORD / BFF_SECRET на сервере). SID CRM сюда не вводится.</p>
+    <form onsubmit="login(event)">
+      <input id="secret" type="password" placeholder="Пароль" style="flex:1" />
+      <button>Войти</button>
+    </form>
+    <p class="muted" id="gateErr"></p>
+  </div>
+  <div id="shell" hidden>
+    <div class="wrap pane on" id="pane-chat">
+      <aside>
+        <h2>Диалоги</h2>
+        <div id="threads"></div>
+        <h2>VIN-заявки</h2>
+        <div id="vins"></div>
+      </aside>
+      <main>
+        <div class="muted" id="head">Выберите диалог слева</div>
+        <div id="log"></div>
+        <form onsubmit="reply(event)" id="replyForm" hidden>
+          <input id="staff" value="Егор" style="width:120px" title="Имя, которое видит клиент" />
+          <input id="text" placeholder="Ответ клиенту…" style="flex:1" />
+          <button>Отправить</button>
+        </form>
+      </main>
+    </div>
+    <div class="pane" id="pane-push">
+      <div class="grid2">
+        <div>
+          <h2>Новая рассылка</h2>
+          <p class="muted">Уйдёт в inbox приложения и на главную (если закрепить). Системный FCM — когда будет ключ Firebase.</p>
+          <label>Заголовок</label>
+          <input id="cTitle" style="width:100%" placeholder="−20% на шиномонтаж" />
+          <label>Текст пуша</label>
+          <textarea id="cBody" placeholder="До конца месяца, любой филиал"></textarea>
+          <label>Бейдж на карточке</label>
+          <input id="cBadge" value="Акция" style="width:100%" />
+          <label>Сегмент</label>
+          <select id="cSeg" style="width:100%" onchange="document.getElementById('cBranch').parentElement.style.display = this.value==='branch' ? 'block' : 'none'">
+            <option value="all">Все, кто входил в приложение</option>
+            <option value="inactive">Давно не был (90+ дней без ЗН)</option>
+            <option value="branch">Филиал последнего визита</option>
+          </select>
+          <div style="display:none">
+            <label>CUSTOMER_ID филиала</label>
+            <input id="cBranch" placeholder="2113" style="width:100%" />
+          </div>
+          <label><input type="checkbox" id="cPin" checked /> Закрепить на главной</label>
+          <form onsubmit="sendCampaign(event)" style="margin-top:.8rem">
+            <button>Отправить</button>
+          </form>
+          <p class="muted" id="cMsg"></p>
+        </div>
+        <div>
+          <h2>Аудитория</h2>
+          <div id="aud" class="muted">—</div>
+          <h2>История рассылок</h2>
+          <div id="camps"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane" id="pane-smtp">
+      <div class="grid2">
+        <div>
+          <h2>SMTP для кодов входа</h2>
+          <p class="muted">Исходящий порт 25 на VPS закрыт — нужен ящик Mail.ru / Яндекс / Gmail на 465 или 587. Пароль — «пароль приложения», не от сайта.</p>
+          <div class="row-btns">
+            <button type="button" class="ghost" onclick="smtpPreset('mailru')">Mail.ru</button>
+            <button type="button" class="ghost" onclick="smtpPreset('yandex')">Яндекс</button>
+            <button type="button" class="ghost" onclick="smtpPreset('gmail')">Gmail</button>
+          </div>
+          <label>Хост</label>
+          <input id="mHost" style="width:100%" placeholder="smtp.mail.ru" />
+          <label>Порт</label>
+          <input id="mPort" style="width:100%" value="465" />
+          <label>Логин (полный email)</label>
+          <input id="mUser" style="width:100%" placeholder="noreply@mail.ru" />
+          <label>Пароль приложения</label>
+          <input id="mPass" type="password" style="width:100%" placeholder="оставьте пустым, чтобы не менять" />
+          <label>From (если отличается)</label>
+          <input id="mFrom" style="width:100%" placeholder="тот же ящик" />
+          <label><input type="checkbox" id="mSsl" checked /> SSL (порт 465)</label>
+          <form onsubmit="saveSmtp(event)" style="margin-top:.8rem">
+            <button>Сохранить</button>
+          </form>
+          <p class="muted" id="mMsg"></p>
+        </div>
+        <div>
+          <h2>Проверка</h2>
+          <p class="muted" id="mStatus">—</p>
+          <label>Отправить тест на</label>
+          <input id="mTo" style="width:100%" placeholder="ваш email" />
+          <form onsubmit="testSmtp(event)" style="margin-top:.8rem">
+            <button type="submit" class="ghost">Отправить тестовое письмо</button>
+          </form>
+          <p class="muted" id="mTest"></p>
+        </div>
+      </div>
+    </div>
+    <div class="pane" id="pane-shorts">
+      <div class="grid2">
+        <div>
+          <h2 id="sFormTitle">Новый ролик 9:16</h2>
+          <p class="muted">Ссылка на mp4/YouTube. Бренд-карточки можно править или убрать из слайдера.</p>
+          <input type="hidden" id="sId" />
+          <label>Заголовок</label>
+          <input id="sTitle" style="width:100%" placeholder="Шиномонтаж за 40 минут" />
+          <label>Подзаголовок</label>
+          <input id="sSub" style="width:100%" placeholder="Любой филиал" />
+          <label>URL ролика</label>
+          <input id="sUrl" style="width:100%" placeholder="https://…" />
+          <form onsubmit="saveShort(event)" style="margin-top:.8rem">
+            <button id="sSaveBtn">Добавить в слайдер</button>
+            <button type="button" class="ghost" id="sCancelBtn" hidden onclick="resetShortForm()">Отмена</button>
+          </form>
+          <p class="muted" id="sMsg"></p>
+        </div>
+        <div>
+          <h2>Слайдер сейчас</h2>
+          <div id="shortsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const S = { key: sessionStorage.getItem("vm_admin") || "", thread: "", tab: "chat" };
+    async function api(path, opt = {}) {
+      const r = await fetch(path, {
+        ...opt,
+        headers: { "Content-Type": "application/json", "X-BFF-Secret": S.key, ...(opt.headers || {}) },
+      });
+      if (r.status === 401 || r.status === 404) throw new Error("Нет доступа");
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || r.status);
+      return d;
+    }
+    function tab(id) {
+      S.tab = id;
+      document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === id));
+      document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.id === "pane-" + id));
+      if (id === "push") loadPush();
+      if (id === "shorts") loadShorts();
+      if (id === "smtp") loadSmtp();
+    }
+    async function login(e) {
+      e.preventDefault();
+      S.key = document.getElementById("secret").value.trim();
+      try {
+        await refresh();
+        sessionStorage.setItem("vm_admin", S.key);
+        openApp();
+      } catch (err) {
+        document.getElementById("gateErr").textContent = err.message || "Ошибка";
+      }
+    }
+    function openApp() {
+      document.getElementById("gate").hidden = true;
+      document.getElementById("shell").hidden = false;
+      document.getElementById("tabs").hidden = false;
+    }
+    async function refresh() {
+      const th = await api("/admin/api/threads");
+      const vins = await api("/admin/api/vin");
+      document.getElementById("threads").innerHTML = (th.threads || []).map(t =>
+        `<div class="thread ${t.key===S.thread?'on':''}" onclick="openThread('${t.key}')">
+          <b>${t.name || t.phone || t.key}</b>
+          <div class="muted">${t.phone || ''} · ${t.count} сообщ.</div>
+          <div class="muted">${(t.last||'').slice(0,80)}</div>
+        </div>`).join("") || '<p class="muted">Пока пусто — напишите из приложения</p>';
+      document.getElementById("vins").innerHTML = (vins.items || []).map(v =>
+        `<div class="vin" onclick="openThread('${v.key}')">
+          <b>${v.vin}</b>
+          <div class="muted">${v.part}</div>
+          <div class="muted">${v.phone || v.key}</div>
+        </div>`).join("") || '<p class="muted">Нет VIN-заявок</p>';
+      if (S.thread) await openThread(S.thread, false);
+    }
+    async function openThread(key, refetch = true) {
+      S.thread = key;
+      const d = await api("/admin/api/threads/" + encodeURIComponent(key));
+      document.getElementById("head").textContent = (d.name || d.phone || key);
+      document.getElementById("who").textContent = d.phone || "";
+      document.getElementById("log").innerHTML = (d.messages || []).map(m =>
+        `<div class="msg ${m.from_staff ? 'staff' : 'client'}">
+          ${m.from_staff ? `<div class="name">${m.staff_name || "Менеджер"}</div>` : ""}
+          ${m.text}
+        </div>`).join("");
+      document.getElementById("replyForm").hidden = false;
+      if (refetch) await refresh();
+      const log = document.getElementById("log");
+      log.scrollTop = log.scrollHeight;
+    }
+    async function reply(e) {
+      e.preventDefault();
+      const text = document.getElementById("text").value.trim();
+      if (!text || !S.thread) return;
+      await api("/admin/api/threads/" + encodeURIComponent(S.thread), {
+        method: "POST",
+        body: JSON.stringify({ text, staff_name: document.getElementById("staff").value.trim() || "Егор" }),
+      });
+      document.getElementById("text").value = "";
+      await openThread(S.thread);
+    }
+    async function loadPush() {
+      const a = await api("/admin/api/audience");
+      const c = await api("/admin/api/campaigns");
+      const n = (a.contact_ids || []).length;
+      document.getElementById("aud").innerHTML = n
+        ? `Контактов в приложении: <b>${n}</b><br>` + (a.items || []).slice(0, 12).map(x => `${x.name || ''} ${x.phone || x.contact_id}`).join("<br>")
+        : "Пока пусто — пусть тестовый клиент войдёт по OTP, затем повторите рассылку.";
+      document.getElementById("camps").innerHTML = (c.items || []).map(x =>
+        `<div class="camp"><b>${x.title}</b><div class="muted">${x.body || ''}</div><div class="muted">${x.segment} · отправлено ${x.sent || 0}</div></div>`
+      ).join("") || '<p class="muted">Рассылок ещё не было</p>';
+    }
+    async function sendCampaign(e) {
+      e.preventDefault();
+      const msg = document.getElementById("cMsg");
+      msg.textContent = "Отправка…";
+      try {
+        const d = await api("/admin/api/campaigns", {
+          method: "POST",
+          body: JSON.stringify({
+            title: document.getElementById("cTitle").value,
+            body: document.getElementById("cBody").value,
+            badge: document.getElementById("cBadge").value,
+            segment: document.getElementById("cSeg").value,
+            branch_id: document.getElementById("cBranch").value,
+            pin: document.getElementById("cPin").checked,
+          }),
+        });
+        msg.innerHTML = `<span class="ok">Готово: inbox ${d.sent} контакт(ов). Карточка на главной закреплена.</span>`;
+        await loadPush();
+      } catch (err) {
+        msg.textContent = err.message || "Ошибка";
+      }
+    }
+    async function loadShorts() {
+      const d = await api("/admin/api/shorts");
+      document.getElementById("shortsList").innerHTML = (d.items || []).map(s =>
+        `<div class="camp">
+          <b>${esc(s.title)}</b>
+          <div class="muted">${esc(s.subtitle || "")}</div>
+          <div class="muted">${esc(s.url || (s.builtin ? "бренд-карточка" : "без ссылки"))}${s.builtin ? " · шаблон" : ""}</div>
+          <div class="row-btns">
+            <button type="button" class="ghost" onclick='editShort(${JSON.stringify(s)})'>Изменить</button>
+            <button type="button" class="danger" onclick="removeShort(${JSON.stringify(String(s.id || ''))})">Удалить</button>
+          </div>
+        </div>`
+      ).join("") || '<p class="muted">Слайдер пуст — клиент увидит заглушку</p>';
+    }
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function resetShortForm() {
+      document.getElementById("sId").value = "";
+      document.getElementById("sTitle").value = "";
+      document.getElementById("sSub").value = "";
+      document.getElementById("sUrl").value = "";
+      document.getElementById("sFormTitle").textContent = "Новый ролик 9:16";
+      document.getElementById("sSaveBtn").textContent = "Добавить в слайдер";
+      document.getElementById("sCancelBtn").hidden = true;
+      document.getElementById("sMsg").textContent = "";
+    }
+    function editShort(s) {
+      document.getElementById("sId").value = s.id || "";
+      document.getElementById("sTitle").value = s.title || "";
+      document.getElementById("sSub").value = s.subtitle || "";
+      document.getElementById("sUrl").value = s.url || "";
+      document.getElementById("sFormTitle").textContent = "Редактировать ролик";
+      document.getElementById("sSaveBtn").textContent = "Сохранить";
+      document.getElementById("sCancelBtn").hidden = false;
+      document.getElementById("sMsg").textContent = "";
+      document.getElementById("sTitle").focus();
+    }
+    async function saveShort(e) {
+      e.preventDefault();
+      const msg = document.getElementById("sMsg");
+      const id = document.getElementById("sId").value.trim();
+      const payload = {
+        title: document.getElementById("sTitle").value,
+        subtitle: document.getElementById("sSub").value,
+        url: document.getElementById("sUrl").value,
+      };
+      try {
+        if (id) await api("/admin/api/shorts/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify(payload) });
+        else await api("/admin/api/shorts", { method: "POST", body: JSON.stringify(payload) });
+        msg.innerHTML = id ? '<span class="ok">Сохранено</span>' : '<span class="ok">Добавлено в слайдер</span>';
+        resetShortForm();
+        await loadShorts();
+      } catch (err) {
+        msg.textContent = err.message || "Ошибка";
+      }
+    }
+    async function loadSmtp() {
+      const d = await api("/admin/api/smtp");
+      document.getElementById("mHost").value = d.host || "";
+      document.getElementById("mPort").value = d.port || 465;
+      document.getElementById("mUser").value = d.user || "";
+      document.getElementById("mFrom").value = d.from || "";
+      document.getElementById("mSsl").checked = !!d.ssl;
+      document.getElementById("mPass").placeholder = d.password_set ? "сохранён, не менять" : "пароль приложения";
+      document.getElementById("mStatus").innerHTML = d.ready
+        ? '<span class="ok">SMTP включён — коды уходят письмом, не 1234</span>'
+        : "SMTP выключен — приложение принимает код 1234";
+      if (!document.getElementById("mTo").value) document.getElementById("mTo").value = d.from || d.user || "";
+    }
+    function smtpPreset(kind) {
+      const map = {
+        mailru: { host: "smtp.mail.ru", port: 465, ssl: true },
+        yandex: { host: "smtp.yandex.ru", port: 465, ssl: true },
+        gmail: { host: "smtp.gmail.com", port: 587, ssl: false },
+      };
+      const p = map[kind];
+      if (!p) return;
+      document.getElementById("mHost").value = p.host;
+      document.getElementById("mPort").value = p.port;
+      document.getElementById("mSsl").checked = p.ssl;
+    }
+    async function saveSmtp(e) {
+      e.preventDefault();
+      const msg = document.getElementById("mMsg");
+      msg.textContent = "Сохранение…";
+      try {
+        const d = await api("/admin/api/smtp", {
+          method: "POST",
+          body: JSON.stringify({
+            host: document.getElementById("mHost").value,
+            port: Number(document.getElementById("mPort").value) || 465,
+            user: document.getElementById("mUser").value,
+            password: document.getElementById("mPass").value,
+            from_addr: document.getElementById("mFrom").value,
+            tls: true,
+            ssl: document.getElementById("mSsl").checked,
+          }),
+        });
+        document.getElementById("mPass").value = "";
+        msg.innerHTML = d.ready
+          ? '<span class="ok">Сохранено. SMTP готов — проверьте письмом справа.</span>'
+          : "Сохранено, но без пароля коды по-прежнему 1234.";
+        await loadSmtp();
+      } catch (err) {
+        msg.textContent = err.message || "Ошибка";
+      }
+    }
+    async function testSmtp(e) {
+      e.preventDefault();
+      const msg = document.getElementById("mTest");
+      msg.textContent = "Отправка…";
+      try {
+        const d = await api("/admin/api/smtp/test", {
+          method: "POST",
+          body: JSON.stringify({ to: document.getElementById("mTo").value }),
+        });
+        msg.innerHTML = `<span class="ok">Письмо ушло на ${d.to}</span>`;
+      } catch (err) {
+        msg.textContent = err.message || "Ошибка SMTP";
+      }
+    }
+    async function removeShort(id) {
+      if (!id || !confirm("Убрать этот ролик из слайдера?")) return;
+      await api("/admin/api/shorts/" + encodeURIComponent(id), { method: "DELETE" });
+      if (document.getElementById("sId").value === id) resetShortForm();
+      await loadShorts();
+    }
+    if (S.key) {
+      refresh().then(() => {
+        openApp();
+      }).catch(() => sessionStorage.removeItem("vm_admin"));
+    }
+    setInterval(() => { if (S.key && !document.getElementById("shell").hidden && S.tab === "chat") refresh().catch(() => {}); }, 20000);
+  </script>
+</body>
+</html>

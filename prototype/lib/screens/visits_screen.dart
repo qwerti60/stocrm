@@ -67,7 +67,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
           textAlign: TextAlign.right,
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: upcoming ? vagRed : Colors.white),
         ),
-        onTap: upcoming ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store))) : null,
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store, visit: v))),
       ),
     );
   }

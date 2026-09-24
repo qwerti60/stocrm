@@ -35,7 +35,7 @@ class _GarageScreenState extends State<GarageScreen> {
             onChanged: (v) => setState(() => q = v),
           ),
           const SizedBox(height: 8),
-          const Text('Редактируйте пробег, VIN и госномер. Закрытые ЗН — только просмотр.', style: TextStyle(color: vagMuted, fontSize: 12)),
+                    const Text('Машины из карточки клиента в STOCRM. Добавление и удаление пишутся в CRM.', style: TextStyle(color: vagMuted, fontSize: 12)),
           const SizedBox(height: 12),
           if (cars.isEmpty)
             Card(
@@ -137,16 +137,21 @@ class _GarageScreenState extends State<GarageScreen> {
       ),
     );
     if (ok == true && plate.text.trim().isNotEmpty) {
-      widget.store.addCar(Vehicle(
-        id: 'c${widget.store.cars.length + 1}',
-        plate: plate.text.trim().toUpperCase(),
-        make: make.text.trim(),
-        model: model.text.trim(),
-        year: int.tryParse(year.text) ?? 2020,
-        mileage: int.tryParse(km.text) ?? 0,
-        vin: vin.text.trim().isEmpty ? null : vin.text.trim().toUpperCase(),
-        nextServiceKm: (int.tryParse(km.text) ?? 0) + 10000,
-      ));
+      try {
+        await widget.store.addCarRemote(
+          plate: plate.text.trim().toUpperCase(),
+          make: make.text.trim().isEmpty ? 'Volkswagen' : make.text.trim(),
+          model: model.text.trim().isEmpty ? 'авто' : model.text.trim(),
+          year: int.tryParse(year.text) ?? 2020,
+          mileage: int.tryParse(km.text) ?? 0,
+          vin: vin.text.trim().isEmpty ? null : vin.text.trim().toUpperCase(),
+        );
+        if (context.mounted) setState(() {});
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        }
+      }
     }
   }
 }
@@ -183,6 +188,32 @@ class CarDetailScreen extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store))),
             child: const Text('Записать это авто'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Убрать авто из гаража?'),
+                  content: const Text('В STOCRM машина помечается как проданная / скрывается из приложения.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Удалить')),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+              try {
+                await store.deleteCarRemote(car.id);
+                if (context.mounted) Navigator.pop(context);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                }
+              }
+            },
+            child: const Text('Удалить из гаража'),
           ),
           const SizedBox(height: 16),
           const Text('История (только закрытые ЗН)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
