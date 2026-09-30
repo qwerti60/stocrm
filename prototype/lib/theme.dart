@@ -81,3 +81,65 @@ ThemeData buildAppTheme() {
     ),
   );
 }
+
+class VagWordmark extends StatelessWidget {
+  const VagWordmark({
+    super.key,
+    this.size = 22,
+    this.stacked = false,
+    this.centered = false,
+  });
+
+  final double size;
+  final bool stacked;
+  final bool centered;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = vagRed;
+    if (!stacked) {
+      return Text(
+        'VAG MARKET',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w900,
+          fontStyle: FontStyle.italic,
+          fontSize: size,
+          height: 0.95,
+          letterSpacing: 0.2,
+        ),
+      );
+    }
+    return Semantics(
+      label: 'VAG MARKET',
+      child: Column(
+        crossAxisAlignment: centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'VAG',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: size,
+              height: 0.88,
+              letterSpacing: size * 0.06,
+            ),
+          ),
+          Text(
+            'MARKET',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: size * 0.58,
+              height: 0.95,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

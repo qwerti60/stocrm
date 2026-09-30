@@ -121,7 +121,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('VAG MARKET', style: TextStyle(color: vagRed, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.2)),
+                        const VagWordmark(size: 22),
                         const Spacer(),
                         const Icon(Icons.play_circle_fill, color: Colors.white70, size: 72),
                         const SizedBox(height: 18),

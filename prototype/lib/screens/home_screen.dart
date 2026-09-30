@@ -28,7 +28,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String q = '';
   String? _shownAlert;
 
   @override
@@ -56,34 +55,52 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  List<_Hit> get _hits {
-    if (q.trim().isEmpty) return const [];
-    final n = q.toLowerCase();
-    final out = <_Hit>[];
-    for (final c in widget.store.cars) {
-      if ('${c.title} ${c.plate} ${c.vin ?? ''} ${c.make} ${c.model}'.toLowerCase().contains(n)) {
-        out.add(_Hit('${c.title} · ${c.plate}', c.vin ?? 'гараж', widget.onOpenGarage));
-      }
-    }
-    for (final s in widget.store.services) {
-      if ('${s.title} ${s.subtitle}'.toLowerCase().contains(n)) {
-        out.add(_Hit(s.title, s.subtitle, widget.onOpenBook));
-      }
-    }
-    for (final b in widget.store.branches) {
-      if ('${b.name} ${b.address}'.toLowerCase().contains(n)) {
-        out.add(_Hit(b.name, b.address, widget.onOpenBranches));
-      }
-    }
-    for (final v in widget.store.visits) {
-      final blob = '${v.serviceTitle} ${v.works.join(' ')} ${v.parts.join(' ')}'.toLowerCase();
-      if (blob.contains(n)) {
-        out.add(_Hit(v.serviceTitle, v.branchName, () {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: widget.store)));
-        }));
-      }
-    }
-    return out.take(6).toList();
+  void _openNotes() {
+    final store = widget.store;
+    final notes = store.unreadNotes;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: vagCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        if (notes.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.fromLTRB(24, 28, 24, 40),
+            child: Text('Нет новых уведомлений', style: TextStyle(color: vagMuted)),
+          );
+        }
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('Уведомления', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+              for (final note in notes)
+                ListTile(
+                  leading: const Icon(Icons.notifications_active, color: vagRed),
+                  title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(note.body, style: const TextStyle(color: vagMuted, fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    store.markNoteRead(note.id);
+                    final kind = note.kind ?? '';
+                    if (kind == 'chat' || kind == 'push') {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
+                    } else if (kind == 'promo') {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store)));
+                    } else {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store)));
+                    }
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -91,8 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _maybeAlert();
     final store = widget.store;
     final next = store.nextVisit;
-    final car = store.activeCar;
-    final kmLeft = car == null ? 0 : (car.nextServiceKm ?? car.mileage) - car.mileage;
+    final unread = store.unreadNotes.length;
     return Scaffold(
       body: ListView(
         padding: EdgeInsets.zero,
@@ -100,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF1A0A0C), vagBlack],
+                colors: [Color(0xFF141018), vagBlack],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -108,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -118,194 +134,218 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('VAG MARKET', style: TextStyle(color: vagRed, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: 0.4)),
-                              Text('СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG', style: TextStyle(color: vagMuted, fontSize: 9, letterSpacing: 0.6, fontWeight: FontWeight.w600)),
+                              VagWordmark(size: 24),
+                              SizedBox(height: 4),
+                              Text(
+                                'СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG',
+                                style: TextStyle(color: vagMuted, fontSize: 8, letterSpacing: 0.5, fontWeight: FontWeight.w600),
+                              ),
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(20)),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.location_on_outlined, size: 14, color: vagRed),
-                              SizedBox(width: 4),
-                              Text('Тюмень', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            ],
+                        GestureDetector(
+                          onTap: widget.onOpenBranches,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(20)),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.location_on, size: 14, color: vagRed),
+                                SizedBox(width: 4),
+                                Text('Тюмень', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                SizedBox(width: 2),
+                                Icon(Icons.keyboard_arrow_down, size: 16, color: vagMuted),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         GestureDetector(
-                          onTap: widget.onOpenProfile,
-                          child: const CircleAvatar(radius: 14, backgroundColor: vagRed, child: Text('5', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+                          onTap: _openNotes,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(18)),
+                                child: const Icon(Icons.notifications_none, size: 20),
+                              ),
+                              if (unread > 0)
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: vagRed,
+                                    child: Text('$unread', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Expanded(
-                          child: Text('ВАШ VAG\nВ НАДЁЖНЫХ РУКАХ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1.15)),
-                        ),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset('assets/brand-home.png', width: 132, height: 88, fit: BoxFit.cover, alignment: Alignment.topRight),
-                        ),
-                      ],
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 168,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned(
+                            right: -20,
+                            top: -8,
+                            bottom: 0,
+                            width: 230,
+                            child: Image.asset('assets/hero-car.png', fit: BoxFit.cover, alignment: Alignment.centerRight),
+                          ),
+                          const Positioned(
+                            right: 0,
+                            bottom: 10,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('БОЛЬШЕ', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 3),
+                                  child: SizedBox(width: 46, height: 2, child: ColoredBox(color: vagRed)),
+                                ),
+                                Text('ЧЕМ СЕРВИС', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                              ],
+                            ),
+                          ),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: Text('//', style: TextStyle(color: vagRed, fontWeight: FontWeight.w900, fontSize: 16, fontStyle: FontStyle.italic)),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'ВАШ VAG\nВ НАДЁЖНЫХ РУКАХ',
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, height: 1.15),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  _MakerAsset('assets/brand-vw.png'),
+                                  _MakerAsset('assets/brand-audi.png'),
+                                  _MakerAsset('assets/brand-seat.png'),
+                                  _MakerAsset('assets/brand-skoda.png'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    const Row(
-                      children: [
-                        _BrandDot(label: 'VW'),
-                        _BrandDot(label: 'Audi'),
-                        _BrandDot(label: 'SEAT'),
-                        _BrandDot(label: 'Škoda'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск по услугам, филиалам, истории'),
-                  onChanged: (v) => setState(() => q = v),
-                ),
-                if (_hits.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ..._hits.map(
-                    (h) => Card(
-                      child: ListTile(
-                        dense: true,
-                        title: Text(h.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text(h.subtitle, style: const TextStyle(color: vagMuted, fontSize: 12)),
-                        onTap: h.onTap,
-                      ),
-                    ),
+                if (next != null) ...[
+                  _ServiceChip(
+                    title: 'Авто в сервисе · ${next.status}',
+                    subtitle: '${next.serviceTitle} · ${DateFormat('d MMM, HH:mm', 'ru').format(next.when)}',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store, visit: next))),
                   ),
+                  const SizedBox(height: 10),
                 ],
-                const SizedBox(height: 12),
-                if (store.unreadNotes.isNotEmpty)
-                  Card(
-                    color: const Color(0xFF3A0A10),
-                    child: ListTile(
-                      leading: const Icon(Icons.notifications_active, color: vagRed),
-                      title: Text(store.unreadNotes.first.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(store.unreadNotes.first.body, style: const TextStyle(color: vagMuted, fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        final note = store.unreadNotes.first;
-                        store.markNoteRead(note.id);
-                        final kind = note.kind ?? '';
-                        if (kind == 'chat') {
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
-                        } else if (kind == 'promo') {
-                          return;
-                        } else {
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store)));
-                        }
-                      },
-                    ),
+                if (store.recommendations.isNotEmpty) ...[
+                  _ServiceChip(
+                    title: 'Рекомендации по ремонту · ${store.recommendations.length}',
+                    subtitle: 'Лампа активна, пока есть работы по вашим авто',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
                   ),
-                if (store.unreadNotes.isNotEmpty) const SizedBox(height: 10),
-                _StatusCard(
-                  carTitle: car?.title ?? 'Гараж пуст',
-                  plate: car?.plate.isNotEmpty == true ? car!.plate : 'авто подтянется из CRM',
-                  next: next,
-                  kmLeft: kmLeft,
-                  onStatus: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store, visit: next))),
-                  onBook: widget.onOpenBook,
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                ],
                 _Cta(
-                  icon: Icons.search,
+                  icon: Icons.directions_car_outlined,
+                  overlay: Icons.search,
                   title: 'Подобрать запчасти по VIN',
-                  subtitle: 'Заявка уходит менеджеру, не витрина склада',
+                  subtitle: store.vinTicketCount > 0 ? 'Заявок: ${store.vinTicketCount}' : 'Точные детали для вашего автомобиля',
                   filled: false,
+                  badge: store.vinTicketCount,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store))),
                 ),
                 const SizedBox(height: 10),
                 _Cta(
-                  icon: Icons.calendar_month,
+                  icon: Icons.calendar_today_outlined,
                   title: 'Записаться на сервис',
-                  subtitle: 'Авто → филиал → слот · ждите подтверждения',
+                  subtitle: 'Быстро, удобно, онлайн',
                   filled: true,
                   onTap: widget.onOpenBook,
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _Quick(icon: Icons.settings, label: 'Каталог\nзапчастей', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store)))),
-                    _Quick(icon: Icons.build, label: 'Услуги\nсервиса', onTap: widget.onOpenBook),
-                    _Quick(icon: Icons.fact_check_outlined, label: 'Техобслуживание', onTap: widget.onOpenBook),
                     _Quick(
-                      icon: Icons.tips_and_updates_outlined,
-                      label: 'Рекомендации',
+                      icon: Icons.settings_outlined,
+                      title: 'Каталог\nзапчастей',
+                      subtitle: 'Оригинал и аналоги',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store))),
+                    ),
+                    _Quick(icon: Icons.build_outlined, title: 'Услуги\nсервиса', subtitle: 'Полный спектр', onTap: widget.onOpenBook),
+                    _Quick(icon: Icons.fact_check_outlined, title: 'Техобслуживание', subtitle: 'Регламент VAG', onTap: widget.onOpenBook),
+                    _Quick(
+                      icon: store.recommendations.isEmpty ? Icons.lightbulb_outline : Icons.lightbulb,
+                      title: 'Рекомендации\nпо ремонту',
+                      subtitle: store.recommendations.isEmpty ? 'Пока нет' : '${store.recommendations.length} активных',
+                      badge: store.recommendations.length,
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 Row(
                   children: [
-                    const Text('//  РЕКОМЕНДАЦИИ ИЗ CRM', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.6, fontSize: 13)),
+                    const Text('//  ', style: TextStyle(color: vagRed, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                    const Text('СПЕЦПРЕДЛОЖЕНИЯ', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.6, fontSize: 13)),
                     const Spacer(),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
-                      child: const Text('Все ›', style: TextStyle(color: vagMuted, fontSize: 12)),
-                    ),
+                    const Text('Все акции', style: TextStyle(color: vagMuted, fontSize: 12)),
                   ],
                 ),
-                const SizedBox(height: 10),
-                ...store.recommendations.take(2).map(
-                      (r) => Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: const Icon(Icons.tips_and_updates_outlined, color: vagRed),
-                          title: Text(r, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          trailing: const Icon(Icons.chevron_right, color: vagMuted),
-                          onTap: widget.onOpenBook,
-                        ),
-                      ),
-                    ),
-                const SizedBox(height: 8),
-                const Row(
-                  children: [
-                    Text('//  СПЕЦПРЕДЛОЖЕНИЯ', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-                    Spacer(),
-                    Text('Те же материалы, что в рассылке', style: TextStyle(color: vagMuted, fontSize: 11)),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 SizedBox(
-                  height: 148,
-                  child: SingleChildScrollView(
+                  height: 196,
+                  child: ListView(
                     scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final p in store.promos)
-                          _OfferCard(title: p.title, price: p.badge, note: p.subtitle),
-                      ],
-                    ),
+                    children: [
+                      for (final p in store.promos) _OfferCard(promo: p, onTap: widget.onOpenBook),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _Mini(icon: Icons.card_giftcard, title: 'Бонусная программа', subtitle: '5% с закрытого ЗН', color: vagRed, onTap: widget.onOpenProfile)),
+                    Expanded(
+                      child: _Mini(
+                        icon: Icons.card_giftcard,
+                        title: 'Бонусная программа',
+                        subtitle: 'Копите баллы и получайте выгоду',
+                        color: vagRed,
+                        onTap: widget.onOpenProfile,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Mini(
                         icon: Icons.description_outlined,
                         title: 'Электронный сервисбук',
-                        subtitle: 'История работ',
+                        subtitle: 'Вся история работ в вашем телефоне',
                         color: vagCard,
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
                       ),
@@ -314,32 +354,55 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: _Mini(
                         icon: Icons.chat_bubble_outline,
-                        title: 'Чат с менеджером',
-                        subtitle: 'Егор, VAG Market',
-                        color: vagCard,
+                        title: 'ЧАТ С МЕНЕДЖЕРОМ',
+                        subtitle: 'Онлайн-чат',
+                        color: const Color(0xFFF3F3F5),
+                        dark: true,
+                        badge: store.unreadChat,
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store))),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                const _WidgetPreview(),
-                const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(colors: [Color(0xFF2A0A10), vagRed]),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ДИАГНОСТИКА VAG\nБЕСПЛАТНО', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, height: 1.15)),
-                        SizedBox(height: 4),
-                        Text('При первом визите · push по акциям из админки', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      ],
+                  child: GestureDetector(
+                    onTap: widget.onOpenBook,
+                    child: SizedBox(
+                      height: 108,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          const ColoredBox(color: Color(0xFF1A0508)),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 220,
+                            child: Image.asset('assets/diag-car.png', fit: BoxFit.cover, alignment: Alignment.centerRight),
+                          ),
+                          const Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 18,
+                            child: ColoredBox(color: vagRed),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(28, 18, 120, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('ДИАГНОСТИКА VAG', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 0.2)),
+                                Text('БЕСПЛАТНО', style: TextStyle(color: vagRed, fontWeight: FontWeight.w900, fontSize: 20, height: 1.05)),
+                                Spacer(),
+                                Text('При первом визите', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -352,58 +415,49 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _Hit {
-  const _Hit(this.title, this.subtitle, this.onTap);
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-}
-
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({
-    required this.carTitle,
-    required this.plate,
-    required this.next,
-    required this.kmLeft,
-    required this.onStatus,
-    required this.onBook,
-  });
-  final String carTitle;
-  final String plate;
-  final Visit? next;
-  final int kmLeft;
-  final VoidCallback onStatus;
-  final VoidCallback onBook;
+class _MakerAsset extends StatelessWidget {
+  const _MakerAsset(this.asset);
+  final String asset;
 
   @override
   Widget build(BuildContext context) {
-    final inService = next != null;
-    final title = inService ? 'Авто в сервисе · ${next!.status}' : (kmLeft <= 0 ? 'Пора на ТО' : 'Всё в порядке');
-    final sub = inService
-        ? '${next!.serviceTitle} · ${DateFormat('d MMM, HH:mm', 'ru').format(next!.when)}'
-        : (kmLeft <= 0 ? 'Рекомендация из CRM: запишитесь на обслуживание' : 'До ТО ≈ $kmLeft км · $carTitle');
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Image.asset(asset, height: 48, filterQuality: FilterQuality.high),
+    );
+  }
+}
+
+class _ServiceChip extends StatelessWidget {
+  const _ServiceChip({required this.title, required this.subtitle, required this.onTap});
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
-      color: inService ? vagRed : vagCard,
-      borderRadius: BorderRadius.circular(16),
+      color: vagRed,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: inService ? onStatus : onBook,
-        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              Icon(inService ? Icons.directions_car : Icons.check_circle_outline, color: Colors.white),
-              const SizedBox(width: 12),
+              const Icon(Icons.directions_car, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    Text('$plate · $sub', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.75))),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                    Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.75))),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right),
+              const Icon(Icons.chevron_right, size: 18),
             ],
           ),
         ),
@@ -412,57 +466,23 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-class _WidgetPreview extends StatelessWidget {
-  const _WidgetPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: vagCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2A2A2E)),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Виджет на главном экране Android', style: TextStyle(fontWeight: FontWeight.w800)),
-          SizedBox(height: 4),
-          Text('Долгое нажатие на иконку → Виджеты → VAG Market. Состояния: всё в порядке · пора на ТО · в сервисе · готова. Тап открывает запись или статус.', style: TextStyle(color: vagMuted, fontSize: 12, height: 1.35)),
-        ],
-      ),
-    );
-  }
-}
-
-class _BrandDot extends StatelessWidget {
-  const _BrandDot({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 10),
-      child: Column(
-        children: [
-          const CircleAvatar(radius: 14, backgroundColor: vagCard, child: Icon(Icons.directions_car, size: 14)),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 8, color: vagMuted)),
-        ],
-      ),
-    );
-  }
-}
-
 class _Cta extends StatelessWidget {
-  const _Cta({required this.icon, required this.title, required this.subtitle, required this.filled, required this.onTap});
+  const _Cta({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.filled,
+    required this.onTap,
+    this.overlay,
+    this.badge = 0,
+  });
   final IconData icon;
+  final IconData? overlay;
   final String title;
   final String subtitle;
   final bool filled;
   final VoidCallback onTap;
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -473,21 +493,44 @@ class _Cta extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: filled ? Colors.white.withValues(alpha: 0.14) : const Color(0xFF222226),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 22),
+                    if (overlay != null)
+                      const Positioned(
+                        right: 5,
+                        bottom: 5,
+                        child: Icon(Icons.search, size: 12, color: Colors.white70),
+                      ),
+                  ],
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.75))),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                    Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7))),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right),
+              const Icon(Icons.chevron_right, color: Colors.white54),
+              if (badge > 0) ...[
+                const SizedBox(width: 4),
+                CircleAvatar(radius: 10, backgroundColor: filled ? Colors.white : vagRed, child: Text('$badge', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: filled ? vagRed : Colors.white))),
+              ],
             ],
           ),
         ),
@@ -497,29 +540,37 @@ class _Cta extends StatelessWidget {
 }
 
 class _Quick extends StatelessWidget {
-  const _Quick({required this.icon, required this.label, required this.onTap});
+  const _Quick({required this.icon, required this.title, required this.subtitle, required this.onTap, this.badge = 0});
   final IconData icon;
-  final String label;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 3),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            height: 88,
-            decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.all(8),
+            height: 108,
+            decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(16)),
+            padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(height: 6),
-                Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.15)),
+                Icon(icon, color: badge > 0 ? vagRed : Colors.white, size: 22),
+                if (badge > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: CircleAvatar(radius: 9, backgroundColor: vagRed, child: Text('$badge', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))),
+                  ),
+                const SizedBox(height: 8),
+                Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, height: 1.15)),
+                const Spacer(),
+                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, color: vagMuted, height: 1.15)),
               ],
             ),
           ),
@@ -530,32 +581,53 @@ class _Quick extends StatelessWidget {
 }
 
 class _Mini extends StatelessWidget {
-  const _Mini({required this.icon, required this.title, required this.subtitle, required this.color, required this.onTap});
+  const _Mini({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+    this.dark = false,
+    this.badge = 0,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
   final Color color;
+  final bool dark;
+  final int badge;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final fg = dark ? vagBlack : Colors.white;
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 20),
-              const SizedBox(height: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11, height: 1.2)),
-              const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70)),
-            ],
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 124,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 22, color: fg),
+                    const Spacer(),
+                    if (badge > 0)
+                      CircleAvatar(radius: 9, backgroundColor: vagRed, child: Text('$badge', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, height: 1.15, color: fg)),
+                const Spacer(),
+                Text(subtitle, style: TextStyle(fontSize: 10, height: 1.25, color: dark ? const Color(0xFF5A5A5A) : Colors.white70)),
+              ],
+            ),
           ),
         ),
       ),
@@ -564,27 +636,74 @@ class _Mini extends StatelessWidget {
 }
 
 class _OfferCard extends StatelessWidget {
-  const _OfferCard({required this.title, required this.price, required this.note});
-  final String title;
-  final String price;
-  final String note;
+  const _OfferCard({required this.promo, required this.onTap});
+  final Promo promo;
+  final VoidCallback onTap;
+
+  String? get _asset {
+    final t = promo.title.toLowerCase();
+    if (t.contains('масл')) return 'assets/offer-oil.png';
+    if (t.contains('колод') || t.contains('тормоз')) return 'assets/offer-brakes.png';
+    if (t.contains('грм') || t.contains('ремн')) return 'assets/offer-timing.png';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 168,
-      height: 148,
-      margin: const EdgeInsets.only(right: 10),
-      decoration: BoxDecoration(color: vagCard, borderRadius: BorderRadius.circular(16)),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-          const Spacer(),
-          Text(price, style: const TextStyle(color: vagRed, fontWeight: FontWeight.w800)),
-          Text(note, style: const TextStyle(fontSize: 11, color: vagMuted)),
-        ],
+    final asset = _asset;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 158,
+        margin: const EdgeInsets.only(right: 10),
+        decoration: BoxDecoration(color: const Color(0xFFF4F4F6), borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 92,
+              width: double.infinity,
+              child: asset == null && promo.imageUrl == null
+                  ? const ColoredBox(color: Color(0xFF1A1A1E), child: Icon(Icons.local_offer, color: Colors.white54))
+                  : Image(
+                      image: promo.imageUrl != null ? NetworkImage(promo.imageUrl!) : AssetImage(asset!) as ImageProvider,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.bottomCenter,
+                    ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(promo.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: vagBlack, fontWeight: FontWeight.w800, fontSize: 12, height: 1.15)),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            promo.badge,
+                            style: const TextStyle(color: vagRed, fontWeight: FontWeight.w800, fontSize: 13),
+                          ),
+                        ),
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(color: vagRed, shape: BoxShape.circle),
+                          child: const Icon(Icons.chevron_right, size: 16, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    if (promo.subtitle.isNotEmpty)
+                      Text(promo.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: Color(0xFF6A6A6A))),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

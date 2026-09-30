@@ -41,6 +41,16 @@ class ApiClient {
     return _decode(r);
   }
 
+  Future<List<int>> getBytes(String path) async {
+    final r = await http.get(Uri.parse('$base$path'), headers: {
+      if (token != null) 'Authorization': 'Bearer $token',
+    }).timeout(const Duration(seconds: 40));
+    if (r.statusCode >= 400) {
+      throw ApiException(r.statusCode, r.body);
+    }
+    return r.bodyBytes;
+  }
+
   Future<Map<String, dynamic>> delete(String path) async {
     final r = await http.delete(Uri.parse('$base$path'), headers: _headers).timeout(const Duration(seconds: 40));
     return _decode(r);

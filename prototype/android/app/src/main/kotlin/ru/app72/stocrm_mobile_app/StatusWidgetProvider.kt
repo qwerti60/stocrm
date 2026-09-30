@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 
 class StatusWidgetProvider : AppWidgetProvider() {
@@ -18,10 +19,17 @@ class StatusWidgetProvider : AppWidgetProvider() {
         val title = prefs.getString("title", "Всё в порядке") ?: "Всё в порядке"
         val subtitle = prefs.getString("subtitle", "VAG Market") ?: "VAG Market"
         val screen = prefs.getString("screen", "book") ?: "book"
+        val state = prefs.getString("state", "ok") ?: "ok"
         for (id in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.status_widget)
             views.setTextViewText(R.id.widget_title, title)
             views.setTextViewText(R.id.widget_sub, subtitle)
+            if (state == "recs" || state == "due") {
+                views.setViewVisibility(R.id.widget_art, View.VISIBLE)
+                views.setImageViewResource(R.id.widget_art, R.drawable.widget_recs_car)
+            } else {
+                views.setViewVisibility(R.id.widget_art, View.GONE)
+            }
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("widget_screen", screen)

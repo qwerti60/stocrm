@@ -15,6 +15,9 @@ _PATH = Path(__file__).resolve().parent.parent / "data" / "week3.json"
 _EMPTY: dict[str, Any] = {
     "chats": {},
     "vin": [],
+    "bookings": [],
+    "inbox": {},
+    "sessions": {},
     "bonuses": {},
     "warned": [],
     "campaigns": [],
@@ -26,6 +29,8 @@ _EMPTY: dict[str, Any] = {
     "garage": {},
     "devices": {},
 }
+
+MEDIA = Path(__file__).resolve().parent.parent / "data" / "media"
 
 DEFAULT_PROMOS = [
     {
@@ -153,6 +158,7 @@ def list_threads() -> list[dict[str, Any]]:
 def add_vin(key: str, *, vin: str, part: str, phone: str = "", name: str = "") -> dict[str, Any]:
     row = {
         "id": uuid.uuid4().hex[:10],
+        "kind": "vin",
         "key": key,
         "vin": vin.strip().upper(),
         "part": part.strip(),
@@ -165,22 +171,194 @@ def add_vin(key: str, *, vin: str, part: str, phone: str = "", name: str = "") -
         data = _load()
         data["vin"].insert(0, row)
         _save(data)
-    add_message(key, text=f"VIN {row['vin']} · {row['part']}", from_staff=False, kind="vin", phone=phone, name=name)
-    add_message(
-        key,
-        text="Заявку на подбор получили, уточним наличие и напишем. Это не списание со склада.",
-        from_staff=True,
-        staff_name="Егор",
-        kind="vin",
-        phone=phone,
-        name=name,
-    )
     return row
 
 
-def list_vin() -> list[dict[str, Any]]:
+def list_vin(key: str | None = None) -> list[dict[str, Any]]:
     with _LOCK:
-        return list(_load()["vin"])
+        rows = list(_load()["vin"])
+    if key:
+        return [r for r in rows if str(r.get("key")) == str(key)]
+    return rows
+
+
+def add_booking_ticket(
+    key: str,
+    *,
+    branch: str = "",
+    branch_id: str = "",
+    when: str = "",
+    comment: str = "",
+    car: str = "",
+    phone: str = "",
+    name: str = "",
+    offer_id: Any = None,
+) -> dict[str, Any]:
+    row = {
+        "id": uuid.uuid4().hex[:10],
+        "kind": "book",
+        "key": key,
+        "branch": branch,
+        "branch_id": str(branch_id or ""),
+        "when": when,
+        "comment": comment,
+        "car": car,
+        "phone": phone,
+        "name": name,
+        "offer_id": offer_id,
+        "created": int(time.time()),
+        "status": "new",
+    }
+    with _LOCK:
+        data = _load()
+        data.setdefault("bookings", []).insert(0, row)
+        _save(data)
+    return row
+
+
+def list_bookings(key: str | None = None) -> list[dict[str, Any]]:
+    with _LOCK:
+        rows = list(_load().get("bookings") or [])
+    if key:
+        return [r for r in rows if str(r.get("key")) == str(key)]
+    return rows
+
+
+def list_tickets(key: str | None = None) -> list[dict[str, Any]]:
+    rows = list_vin(key) + list_bookings(key)
+    rows.sort(key=lambda x: int(x.get("created") or 0), reverse=True)
+    return rows
+
+
+def put_session(token: str, user: dict[str, Any]) -> None:
+    if not token:
+        return
+    with _LOCK:
+        data = _load()
+        data.setdefault("sessions", {})[token] = dict(user)
+        _save(data)
+
+
+def get_session(token: str) -> dict[str, Any] | None:
+    if not token:
+        return None
+    with _LOCK:
+        row = (_load().get("sessions") or {}).get(token)
+    return dict(row) if isinstance(row, dict) else None
+
+
+def drop_session(token: str) -> None:
+    with _LOCK:
+        data = _load()
+        (data.get("sessions") or {}).pop(token, None)
+        _save(data)
+
+
+def all_sessions() -> dict[str, dict[str, Any]]:
+    with _LOCK:
+        raw = _load().get("sessions") or {}
+    return {str(k): dict(v) for k, v in raw.items() if isinstance(v, dict)}
+
+
+def save_inbox_note(contact_id: int, note: dict[str, Any]) -> None:
+    key = str(int(contact_id))
+    with _LOCK:
+        data = _load()
+        box = data.setdefault("inbox", {}).setdefault(key, [])
+        box.insert(0, note)
+        data["inbox"][key] = box[:200]
+        _save(data)
+
+
+def load_inbox(contact_id: int) -> list[dict[str, Any]]:
+    key = str(int(contact_id))
+    with _LOCK:
+        return list((_load().get("inbox") or {}).get(key) or [])
+
+
+def mark_inbox_read(contact_id: int, note_id: str) -> None:
+    key = str(int(contact_id))
+    with _LOCK:
+        data = _load()
+        for n in data.setdefault("inbox", {}).setdefault(key, []):
+            if n.get("id") == note_id:
+                n["read"] = True
+                break
+        _save(data)
+
+
+def parse_phones(*chunks: str) -> list[str]:
+    import re
+
+    found: list[str] = []
+    seen: set[str] = set()
+    blob = "\n".join(c or "" for c in chunks)
+    for m in re.findall(r"\d{10,15}", blob):
+        d = re.sub(r"\D", "", m)
+        if d.startswith("8") and len(d) == 11:
+            d = "7" + d[1:]
+        if len(d) == 10:
+            d = "7" + d
+        if d.startswith("7") and len(d) == 11 and d not in seen:
+            seen.add(d)
+            found.append(d)
+    return found
+
+
+def phones_from_table(raw: bytes, filename: str = "") -> list[str]:
+    name = (filename or "").lower()
+    text = ""
+    if name.endswith(".xlsx") or raw[:2] == b"PK":
+        try:
+            import io
+
+            from openpyxl import load_workbook
+
+            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            parts: list[str] = []
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    for cell in row:
+                        if cell is not None:
+                            parts.append(str(cell))
+            text = "\n".join(parts)
+        except Exception:
+            text = raw.decode("utf-8", errors="ignore")
+    else:
+        text = raw.decode("utf-8-sig", errors="ignore")
+    return parse_phones(text)
+
+
+def audience_by_phone(phone: str) -> dict[str, Any] | None:
+    want = (phone or "").strip()
+    if not want:
+        return None
+    for row in list_audience():
+        if str(row.get("phone") or "") == want:
+            return row
+    ident = get_identity(want)
+    if ident:
+        return ident
+    return None
+
+
+def save_promo_image(cid: str, data: bytes, suffix: str = ".jpg") -> str:
+    MEDIA.mkdir(parents=True, exist_ok=True)
+    ext = suffix if suffix.startswith(".") else f".{suffix}"
+    if ext.lower() not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    path = MEDIA / f"{cid}{ext}"
+    path.write_bytes(data)
+    return str(path.name)
+
+
+def promo_image_path(cid: str) -> Path | None:
+    if not cid:
+        return None
+    for p in MEDIA.glob(f"{cid}.*"):
+        if p.is_file():
+            return p
+    return None
 
 
 def money(v: Any) -> int:
@@ -191,6 +369,22 @@ def money(v: Any) -> int:
         return int(round(float(s)))
     except (TypeError, ValueError):
         return 0
+
+
+def bonus_points(amount: int, board_id: int = 0) -> int:
+    """5% как в кэшбэке CRM. Мелкие ЗН чужих воронок (Эрвье и т.п.) не копятся."""
+    if amount <= 0:
+        return 0
+    pct = max(int(settings.bonus_percent or 5), 1)
+    min_sum = max(int(settings.bonus_min_sum or 0), 0)
+    main = int(settings.stocrm_board_id or 1097)
+    try:
+        board = int(board_id or 0)
+    except (TypeError, ValueError):
+        board = 0
+    if min_sum and amount < min_sum and board and board != main:
+        return 0
+    return int(round(amount * pct / 100))
 
 
 def is_bonus_offer(status_id: int, title: str) -> bool:
@@ -257,7 +451,13 @@ def sync_bonuses(contact_id: int, offers: list[dict[str, Any]]) -> list[dict[str
             if str(oid) in seen:
                 continue
             seen.add(str(oid))
-            delta = max(int(round(amount * pct / 100)), 1)
+            try:
+                board_id = int(o.get("BOARD_ID") or o.get("board_id") or 0)
+            except (TypeError, ValueError):
+                board_id = 0
+            delta = bonus_points(amount, board_id)
+            if delta <= 0:
+                continue
             when = _offer_ts(o)
             ev = {
                 "id": f"zn-{oid}",
@@ -345,20 +545,24 @@ def _live_bonus(events: list[dict[str, Any]], now: int | None = None) -> dict[st
             rem = int(lot["remaining"])
             exp = int(lot["expires"] or 0)
             expired = bool(exp and exp <= now)
+            live = 0 if expired else rem
+            row["gross"] = delta
             row["expires"] = exp
             row["expired"] = expired
-            row["remaining"] = 0 if expired else rem
+            row["remaining"] = live
+            row["delta"] = live
             if expired:
                 burned += rem
                 row["title"] = "Сгорело"
                 note = str(e.get("note") or "").strip()
-                row["note"] = f"{note} · истекли {expire_days} дн.".strip(" ·")
+                row["note"] = f"{note} · было {delta} ₽ · истекли {expire_days} дн.".strip(" ·")
             else:
                 balance += rem
                 if rem > 0 and exp and 0 < exp - now <= warn_days * 86400:
                     expiring.append(row)
         else:
             row["expired"] = False
+            row["gross"] = delta
             row["remaining"] = delta
         out.append(row)
     return {
@@ -376,8 +580,17 @@ def bonus_statement(contact_id: int) -> dict[str, Any]:
     with _LOCK:
         events = list((_load()["bonuses"].get(key) or {}).get("events") or [])
     live = _live_bonus(events)
+    accrued = 0
+    for e in live["events"]:
+        try:
+            g = int(e.get("gross") or 0)
+        except (TypeError, ValueError):
+            g = 0
+        if g > 0:
+            accrued += g
     return {
         "balance": live["balance"],
+        "accrued": accrued,
         "burned": live["burned"],
         "percent": int(settings.bonus_percent or 5),
         "expire_days": live["expire_days"],
@@ -555,7 +768,9 @@ def add_campaign(
     badge: str = "Акция",
     segment: str = "all",
     branch_id: str = "",
-    pin: bool = True,
+    pin: bool = False,
+    kind: str = "push",
+    image: str = "",
 ) -> dict[str, Any]:
     row = {
         "id": uuid.uuid4().hex[:10],
@@ -568,7 +783,8 @@ def add_campaign(
         "pinned": bool(pin),
         "created": int(time.time()),
         "sent": 0,
-        "kind": "promo",
+        "kind": (kind or "push").strip() or "push",
+        "image": (image or "").strip(),
     }
     with _LOCK:
         data = _load()
@@ -594,7 +810,7 @@ def list_campaigns() -> list[dict[str, Any]]:
 
 
 def list_promos() -> list[dict[str, Any]]:
-    own = [c for c in list_campaigns() if c.get("pinned") or c.get("sent")]
+    own = [c for c in list_campaigns() if c.get("pinned") and c.get("kind") != "push"]
     if own:
         return own
     return list(DEFAULT_PROMOS)

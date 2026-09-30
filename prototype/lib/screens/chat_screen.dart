@@ -18,7 +18,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     widget.store.addListener(_onStore);
-    widget.store.refreshChat();
+    widget.store.refreshChat().then((_) {
+      if (mounted) widget.store.markChatRead();
+    });
   }
 
   @override
@@ -51,15 +53,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final staff = widget.store.staffName;
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Чат с сервисом'),
-            Text('Менеджер: $staff', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: vagMuted)),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('Чат с менеджером')),
       body: Column(
         children: [
           Expanded(

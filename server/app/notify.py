@@ -35,6 +35,9 @@ def add_note(contact_id: int, title: str, body: str, offer_id: Any = None, kind:
     }
     with _lock:
         inbox.setdefault(int(contact_id), []).insert(0, note)
+    from app.store import save_inbox_note
+
+    save_inbox_note(int(contact_id), note)
     tokens = fcm_tokens(int(contact_id))
     for tok in tokens:
         send_fcm(tok, title, body)
@@ -42,6 +45,13 @@ def add_note(contact_id: int, title: str, body: str, offer_id: Any = None, kind:
 
 
 def list_notes(contact_id: int) -> list[dict[str, Any]]:
+    from app.store import load_inbox
+
+    persisted = load_inbox(int(contact_id))
+    if persisted:
+        with _lock:
+            inbox[int(contact_id)] = persisted
+        return persisted
     with _lock:
         return list(inbox.get(int(contact_id), []))
 
@@ -55,10 +65,13 @@ def known_contact_ids() -> list[int]:
 
 
 def mark_read(contact_id: int, note_id: str) -> None:
+    from app.store import mark_inbox_read
+
     with _lock:
         for n in inbox.get(int(contact_id), []):
             if n["id"] == note_id:
                 n["read"] = True
+    mark_inbox_read(int(contact_id), note_id)
 
 
 def is_ready_status(status_id: int | None, title: str) -> bool:

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     bonus_percent: int = 5
     bonus_expire_days: int = 365
     bonus_warn_days: int = 5
+    bonus_min_sum: int = 500
 
     @property
     def is_dev_secret(self) -> bool:

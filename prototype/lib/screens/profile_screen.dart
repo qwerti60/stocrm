@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
@@ -11,7 +10,6 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final df = DateFormat('d MMM yyyy', 'ru');
     return Scaffold(
       appBar: AppBar(title: const Text('Профиль', style: TextStyle(fontWeight: FontWeight.w800))),
       body: ListView(
@@ -34,58 +32,45 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Бонусы 5% с успешно реализованных ЗН', style: TextStyle(color: Colors.white70)),
+                const Text('Бонусы', style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 4),
-                Text('${store.bonus} ₽', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
-                Text(
-                  store.crmLive
-                      ? 'Текущий остаток: сгоревшие баллы в сумму не входят'
-                      : 'Списание до 50% суммы · push за 5 дней до сгорания',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
+                Text('${store.bonus}', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                Text('Текущий баланс · накоплено ${store.bonusAccrued}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          const Text('История начислений и списаний', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          const Text('Мои автомобили', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          ...store.bonusLog.map((e) => Card(
-                child: ListTile(
-                  title: Text(
-                    e.expired ? 'Сгорело' : e.title,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: e.expired ? vagMuted : null),
-                  ),
-                  subtitle: Text('${df.format(e.when)} · ${e.note ?? ''}', style: const TextStyle(color: vagMuted)),
-                  trailing: Text(
-                    e.expired ? '0' : (e.delta > 0 ? '+${e.delta}' : '${e.delta}'),
-                    style: TextStyle(color: e.expired || e.delta < 0 ? vagRed : Colors.white, fontWeight: FontWeight.w800),
-                  ),
-                ),
-              )),
+          if (store.cars.isEmpty) const Text('В гараже пока пусто', style: TextStyle(color: vagMuted)),
+          ...store.cars.map(
+            (c) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const Icon(Icons.directions_car, color: vagRed),
+                title: Text(c.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text('${c.plate}${c.vin != null ? ' · ${c.vin}' : ''}', style: const TextStyle(color: vagMuted)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text('История обслуживания', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.menu_book_outlined, color: vagRed),
+              title: const Text('Электронный сервисбук'),
+              subtitle: Text('${store.history.length} заказ-нарядов', style: const TextStyle(color: vagMuted)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
+            ),
+          ),
           const SizedBox(height: 12),
           Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Push-уведомления'),
-                  subtitle: const Text('Статус, «машина готова», акции, сгорание бонусов'),
-                  value: true,
-                  activeThumbColor: vagRed,
-                  onChanged: (_) {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.menu_book_outlined, color: vagRed),
-                  title: const Text('Электронный сервисбук'),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
-                  title: const Text('Политика ПДн · 152-ФЗ'),
-                  onTap: () => launchUrl(Uri.parse(store.privacyUrl), mode: LaunchMode.externalApplication),
-                ),
-              ],
+            child: ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Политика ПДн · 152-ФЗ'),
+              onTap: () => launchUrl(Uri.parse(store.privacyUrl), mode: LaunchMode.externalApplication),
             ),
           ),
           const SizedBox(height: 12),

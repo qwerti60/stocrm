@@ -124,8 +124,8 @@ class _AuthScreenState extends State<AuthScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
           children: [
-            const Text('VAG MARKET', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 0.4, color: vagRed)),
-            const SizedBox(height: 4),
+            const VagWordmark(size: 36, stacked: true),
+            const SizedBox(height: 8),
             const Text('СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG', style: TextStyle(color: vagMuted, fontSize: 10, letterSpacing: 0.8, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             const Text('Вход и регистрация', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),

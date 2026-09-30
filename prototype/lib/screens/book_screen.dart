@@ -26,7 +26,7 @@ class _BookScreenState extends State<BookScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          const Text('Авто → филиал → слот. После отправки: «ожидайте подтверждения звонка или сообщения».', style: TextStyle(color: vagMuted)),
+          const Text('Авто → филиал (Московский, Эрвье, Республика) → свободное время.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),
           TextField(
             decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск услуги'),

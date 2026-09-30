@@ -10,9 +10,9 @@ from urllib.parse import quote
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
 from app.config import persist_smtp, settings
@@ -20,18 +20,25 @@ from app.mail import mask_email, send_otp_email, send_test_email, smtp_public, s
 from app.notify import add_note, known_contact_ids, list_notes, mark_read, poll_once, register_device
 from app.site import mount_site
 from app.slots import MSK, build_slots, day_bounds, unix
+from app.pdf_zn import work_order_pdf
 from app.store import (
+    add_booking_ticket,
     add_campaign,
     add_message,
     add_short,
     add_vin,
+    all_sessions,
+    audience_by_phone,
     delete_short,
     bonus_statement,
+    drop_session,
     get_identity,
+    get_session,
     hidden_car_ids,
     hide_car,
     drop_garage_car,
     identity_by_email,
+    is_bonus_offer,
     list_audience,
     list_campaigns,
     list_garage_local,
@@ -40,9 +47,15 @@ from app.store import (
     list_shorts,
     list_shorts_admin,
     list_threads,
+    list_tickets,
     list_vin,
     mark_campaign_sent,
+    parse_phones,
+    phones_from_table,
+    promo_image_path,
+    put_session,
     save_garage_car,
+    save_promo_image,
     sync_bonuses,
     take_expiry_warnings,
     thread_key,
@@ -76,7 +89,8 @@ async def _poll_loop() -> None:
     interval = max(int(settings.poll_interval_sec or 90), 30)
     while True:
         try:
-            cids = [int(u["contact_id"]) for u in sessions.values() if u.get("contact_id")]
+            live = {**all_sessions(), **sessions}
+            cids = [int(u["contact_id"]) for u in live.values() if u.get("contact_id")]
             await asyncio.to_thread(_week_poll, cids)
         except asyncio.CancelledError:
             raise
@@ -133,9 +147,10 @@ def require_user(authorization: str | None) -> dict[str, Any]:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Нет сессии")
     token = authorization.split(" ", 1)[1].strip()
-    user = sessions.get(token)
+    user = sessions.get(token) or get_session(token)
     if not user:
         raise HTTPException(401, "Сессия истекла")
+    sessions[token] = user
     return user
 
 
@@ -194,6 +209,7 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None) -> dict[str, A
     is_final = _is_final(status_id, title)
     is_ready = stage == "ready" or status_id in (6, 17953, 6845)
     is_history = stage in ("closed", "done") or (stage == "ready" and status_id != 17953)
+    successful = is_bonus_offer(status_id, title)
     return {
         "id": o.get("OFFER_ID"),
         "status": title,
@@ -202,6 +218,7 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None) -> dict[str, A
         "is_final": is_final,
         "is_ready": is_ready,
         "is_history": is_history,
+        "successful": successful,
         "board": o.get("BOARD_NAME"),
         "sum": o.get("OFFER_SUM"),
         "works_sum": o.get("WORKS_SUM"),
@@ -320,7 +337,9 @@ class CampaignIn(BaseModel):
     badge: str = "Акция"
     segment: str = "all"
     branch_id: str = ""
-    pin: bool = True
+    pin: bool = False
+    kind: str = "push"
+    phones: list[str] = []
 
 
 class ShortIn(BaseModel):
@@ -524,6 +543,7 @@ def otp_confirm(body: OtpIn) -> dict[str, Any]:
         "name": name,
         "contact": contact,
     }
+    put_session(token, sessions[token])
     if cid:
         touch_audience(cid, phone=phone, name=str(name or ""))
     otp_box.pop(phone, None)
@@ -665,7 +685,7 @@ def visits(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     cid = user.get("contact_id")
     if not cid:
         return {"offers": []}
-    offers = stocrm.offers_by_contact(int(cid))
+    offers = stocrm.offers_by_contact(int(cid), all_boards=True, pages=20)
     works = stocrm.works_index([int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")])
     return {"offers": [_offer_out(o, works.get(int(o.get("OFFER_ID") or 0), [])) for o in offers]}
 
@@ -711,7 +731,7 @@ def branches() -> dict[str, Any]:
         if str(c.get("ACTIVE") or "Y").upper() in ("N", "0", "FALSE"):
             continue
         rows.append(_branch_out(c, customers))
-    return {"branches": rows}
+    return {"branches": _public_branches(rows)}
 
 
 @app.post("/v1/bookings")
@@ -735,9 +755,20 @@ def bookings(body: BookingIn, authorization: str | None = Header(default=None)) 
     except StoCrmError as e:
         raise HTTPException(502, f"STOCRM не принял заявку: {str(e)[:300]}") from e
     offer_id = _offer_id(created)
+    add_booking_ticket(
+        _user_key(user),
+        branch=str(body.branch_id or ""),
+        branch_id=str(body.branch_id or ""),
+        when=str(body.when or ""),
+        comment=comment,
+        car=str(body.car_id or ""),
+        phone=str(user.get("phone") or ""),
+        name=str(user.get("name") or ""),
+        offer_id=offer_id,
+    )
     return {
         "ok": True,
-        "message": "Вы записаны, ожидайте подтверждения звонка или сообщения",
+        "message": "Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения",
         "offer_id": offer_id,
     }
 
@@ -786,8 +817,8 @@ def notification_test(authorization: str | None = Header(default=None)) -> dict[
 def chat_get(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
     msgs = list_messages(_user_key(user))
-    staff = next((m.get("staff_name") for m in reversed(msgs) if m.get("from_staff") and m.get("staff_name")), "Егор")
-    return {"messages": msgs, "staff_name": staff or "Егор"}
+    staff = next((m.get("staff_name") for m in reversed(msgs) if m.get("from_staff") and m.get("staff_name")), "Менеджер")
+    return {"messages": msgs, "staff_name": staff or "Менеджер"}
 
 
 @app.post("/v1/chat")
@@ -823,6 +854,13 @@ def vin_post(body: VinIn, authorization: str | None = Header(default=None)) -> d
     return {"ok": True, "item": row, "message": "Заявка ушла менеджеру. Это не витрина склада."}
 
 
+@app.get("/v1/tickets")
+def tickets_get(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = require_user(authorization)
+    items = list_tickets(_user_key(user))
+    return {"items": items, "vin": sum(1 for x in items if x.get("kind") == "vin"), "book": sum(1 for x in items if x.get("kind") == "book")}
+
+
 @app.get("/v1/bonuses")
 def bonuses_get(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
@@ -850,15 +888,29 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
                 if mapped.get("is_history"):
                     continue
                 for w in mapped.get("works") or []:
-                    items.append({"title": w, "subtitle": mapped.get("status") or "открытая заявка", "offer_id": mapped.get("id")})
+                    items.append({
+                        "title": w,
+                        "subtitle": mapped.get("status") or "открытая заявка",
+                        "offer_id": mapped.get("id"),
+                        "car": mapped.get("car") or "",
+                        "car_id": "",
+                    })
             cars = stocrm.cars_by_contact(int(cid))
             for c in cars:
                 km = c.get("MILEAGE")
                 nxt = c.get("NEXT_SERVICE_KM") or c.get("TO_MILEAGE")
-                title = c.get("TITLE") or " ".join(x for x in (c.get("BRAND_NAME"), c.get("MODEL_NAME")) if x)
+                mapped_car = _car_out(c)
+                title = mapped_car.get("title") or "Авто"
+                plate = mapped_car.get("plate") or ""
                 if nxt and km:
                     left = int(nxt) - int(km)
-                    items.append({"title": f"ТО {title}: {'пора записываться' if left <= 0 else f'через {left} км'}", "subtitle": "пробег из карточки авто"})
+                    items.append({
+                        "title": f"ТО: {'пора записываться' if left <= 0 else f'через {left} км'}",
+                        "subtitle": "пробег из карточки авто",
+                        "car": title,
+                        "plate": plate,
+                        "car_id": str(mapped_car.get("id") or ""),
+                    })
         except Exception:
             pass
     return {"items": items, "empty": not items}
@@ -866,7 +918,65 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
 
 @app.get("/v1/promos")
 def promos_get() -> dict[str, Any]:
-    return {"items": list_promos()}
+    items = []
+    for c in list_promos():
+        row = dict(c)
+        pid = str(row.get("id") or "")
+        if pid and promo_image_path(pid):
+            row["image_url"] = f"/v1/promos/{pid}/image"
+        items.append(row)
+    return {"items": items}
+
+
+@app.get("/v1/promos/{pid}/image")
+def promo_image(pid: str):
+    path = promo_image_path(pid)
+    if not path:
+        raise HTTPException(404, "Нет картинки")
+    return FileResponse(path)
+
+
+@app.get("/v1/visits/{oid}/pdf")
+def visit_pdf(oid: int, authorization: str | None = Header(default=None)):
+    user = require_user(authorization)
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта")
+    offers = stocrm.offers_by_contact(int(cid), all_boards=True, pages=20)
+    found = next((o for o in offers if int(o.get("OFFER_ID") or 0) == int(oid)), None)
+    if not found:
+        raise HTTPException(404, "Заказ-наряд не найден")
+    mapped = _offer_out(found)
+    if not mapped.get("successful"):
+        raise HTTPException(400, "PDF доступен только по успешно реализованным сделкам")
+    works = stocrm.works_index([oid]).get(oid, [])
+    when = mapped.get("calendar_from") or mapped.get("created") or ""
+    pdf = work_order_pdf(
+        {
+            "id": oid,
+            "when": when,
+            "car": mapped.get("car") or "",
+            "branch": mapped.get("branch") or "",
+            "status": mapped.get("status") or "",
+            "sum": mapped.get("sum") or mapped.get("works_sum") or "",
+            "works": works,
+            "parts": mapped.get("parts") or [],
+        }
+    )
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ZN-{oid}.pdf"'},
+    )
+
+
+@app.post("/v1/auth/logout")
+def auth_logout(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        sessions.pop(token, None)
+        drop_session(token)
+    return {"ok": True}
 
 
 @app.get("/v1/shorts")
@@ -979,10 +1089,17 @@ def widget_get(authorization: str | None = Header(default=None)) -> dict[str, An
                     km = c.get("MILEAGE")
                     nxt = c.get("NEXT_SERVICE_KM") or c.get("TO_MILEAGE")
                     if nxt and km and int(nxt) - int(km) <= 0:
-                        state, title, subtitle, screen = "due", "Пора на ТО", "Рекомендация из карточки авто", "recommendations"
+                        state, title, subtitle, screen = "recs", "Есть рекомендации", "Откройте рекомендации по ремонту", "recommendations"
                         break
         except Exception:
             pass
+        if state == "ok" and cid:
+            try:
+                recs = recommendations_get(authorization)
+                if recs.get("items"):
+                    state, title, subtitle, screen = "recs", "Есть рекомендации", f"{len(recs['items'])} активных", "recommendations"
+            except Exception:
+                pass
     return {"state": state, "title": title, "subtitle": subtitle, "screen": screen}
 
 
@@ -993,10 +1110,43 @@ def _audience_ids() -> list[int]:
             ids.add(int(row.get("contact_id") or 0))
         except (TypeError, ValueError):
             continue
-    for u in sessions.values():
+    for u in {**all_sessions(), **sessions}.values():
         if u.get("contact_id"):
             ids.add(int(u["contact_id"]))
     return sorted(i for i in ids if i)
+
+
+def _campaign_targets(segment: str, branch_id: str, phones: list[str]) -> list[int]:
+    targets: list[int] = []
+    if phones:
+        for p in phones:
+            row = audience_by_phone(p)
+            cid = 0
+            if row:
+                try:
+                    cid = int(row.get("contact_id") or 0)
+                except (TypeError, ValueError):
+                    cid = 0
+            if not cid:
+                try:
+                    contact, _, _ = _lookup_contact(p)
+                    cid = int((contact or {}).get("CONTACT_ID") or (contact or {}).get("ID") or 0)
+                except Exception:
+                    cid = 0
+            if cid:
+                touch_audience(cid, phone=p)
+                targets.append(cid)
+        seen: set[int] = set()
+        uniq: list[int] = []
+        for cid in targets:
+            if cid not in seen:
+                seen.add(cid)
+                uniq.append(cid)
+        return uniq
+    for cid in _audience_ids():
+        if _match_segment(cid, segment, branch_id):
+            targets.append(cid)
+    return targets
 
 
 def _match_segment(cid: int, segment: str, branch_id: str) -> bool:
@@ -1099,28 +1249,76 @@ def admin_campaigns_post(body: CampaignIn, x_bff_secret: str | None = Header(def
     text = body.body.strip()
     if not title or not text:
         raise HTTPException(400, "Нужны заголовок и текст")
+    phones = parse_phones(*[str(p) for p in (body.phones or [])])
+    kind = "promo" if body.pin else (body.kind or "push")
     row = add_campaign(
         title=title,
         body=text,
         badge=body.badge,
-        segment=body.segment,
+        segment="phones" if phones else body.segment,
         branch_id=body.branch_id,
         pin=body.pin,
+        kind=kind,
     )
+    targets = _campaign_targets(body.segment, body.branch_id, phones)
     sent = 0
-    targets: list[int] = []
-    for cid in _audience_ids():
-        if _match_segment(cid, body.segment, body.branch_id):
-            targets.append(cid)
-    if not targets and body.segment in ("", "all"):
-        # ещё никто не входил — положим тестовому контакту, если он в CRM-сессии появится позже
-        pass
     for cid in targets:
-        add_note(cid, title, text, kind="promo")
+        add_note(cid, title, text, kind="push" if kind != "promo" else "promo")
+        add_message(str(cid), text=f"{title}\n{text}", from_staff=True, staff_name="VAG Market", kind="push")
         sent += 1
     mark_campaign_sent(row["id"], sent)
     row["sent"] = sent
-    return {"ok": True, "item": row, "sent": sent, "targets": targets, "fcm": settings.fcm_enabled}
+    return {"ok": True, "item": row, "sent": sent, "targets": targets, "phones": len(phones), "fcm": settings.fcm_enabled}
+
+
+@app.post("/admin/api/campaigns/upload")
+async def admin_campaigns_upload(
+    x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
+    title: str = Form(...),
+    body: str = Form(...),
+    badge: str = Form("Акция"),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    raw = await file.read()
+    phones = phones_from_table(raw, file.filename or "")
+    if not phones:
+        raise HTTPException(400, "В файле не нашлось номеров")
+    return admin_campaigns_post(
+        CampaignIn(title=title, body=body, badge=badge, phones=phones, pin=False, kind="push"),
+        x_bff_secret,
+    )
+
+
+@app.post("/admin/api/promos")
+async def admin_promos_post(
+    x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
+    title: str = Form(...),
+    body: str = Form(""),
+    badge: str = Form("Акция"),
+    image: UploadFile | None = File(default=None),
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    if not title.strip():
+        raise HTTPException(400, "Нужен заголовок")
+    row = add_campaign(title=title, body=body or title, badge=badge, pin=True, kind="promo")
+    if image and image.filename:
+        data = await image.read()
+        if data:
+            save_promo_image(row["id"], data, Path(image.filename).suffix)
+            row["image"] = True
+    return {"ok": True, "item": row}
+
+
+@app.get("/admin/api/tickets")
+def admin_tickets(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    items = list_tickets()
+    return {
+        "items": items,
+        "vin": sum(1 for x in items if x.get("kind") == "vin"),
+        "book": sum(1 for x in items if x.get("kind") == "book"),
+    }
 
 
 @app.get("/admin/api/shorts")
@@ -1337,6 +1535,49 @@ def _maps_url(address: str, name: str, city: str, lat: float | None = None, lng:
         return f"https://2gis.ru/geo/{lng},{lat}"
     q = " ".join(x for x in (city or "Тюмень", address or name) if x).strip()
     return f"https://2gis.ru/tyumen/search/{quote(q)}"
+
+
+def _public_branches(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rules = [
+        ("Московский", ("московск", "vag market"), 2113, "Тюмень, Московский тракт, 118/11"),
+        ("Эрвье", ("эрвье", "ervie", "ervye"), 0, "Тюмень, ул. Эрвье"),
+        ("Республика", ("республик", "nin hao", "ninhao", "nin-hao"), 0, "Тюмень, ул. Республики"),
+    ]
+    picked: list[dict[str, Any]] = []
+    used: set[str] = set()
+    for label, needles, hint, fallback_addr in rules:
+        match = None
+        if hint:
+            match = next((r for r in rows if str(r.get("id")) == str(hint)), None)
+        if match is None:
+            for r in rows:
+                blob = f"{r.get('name') or ''} {r.get('address') or ''} {r.get('street') or ''}".lower()
+                if any(n in blob for n in needles):
+                    match = r
+                    break
+        if match is None:
+            picked.append({
+                "id": str(hint or label),
+                "name": label,
+                "address": fallback_addr,
+                "phone": "+7 345 257-98-88",
+                "city": "Тюмень",
+                "work_time": "09:00–20:00",
+                "maps_url": f"https://2gis.ru/tyumen/search/{quote(fallback_addr)}",
+                "yandex_url": f"https://yandex.ru/maps/?text={quote(fallback_addr)}",
+            })
+            continue
+        kid = str(match.get("id") or "")
+        if kid in used:
+            continue
+        used.add(kid)
+        item = dict(match)
+        item["name"] = label
+        addr = str(item.get("address") or "").strip()
+        if not addr or addr.lower() in {"тюмень", "tyumen"}:
+            item["address"] = fallback_addr
+        picked.append(item)
+    return picked[:3]
 
 
 def _yandex_url(address: str, name: str, city: str, lat: float | None = None, lng: float | None = None) -> str:

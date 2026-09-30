@@ -15,6 +15,12 @@ class _VinScreenState extends State<VinScreen> {
   final partCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    widget.store.refreshTickets();
+  }
+
+  @override
   void dispose() {
     vinCtrl.dispose();
     partCtrl.dispose();
@@ -34,26 +40,52 @@ class _VinScreenState extends State<VinScreen> {
       return;
     }
     if (!mounted) return;
+    partCtrl.clear();
+    setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Заявка ушла менеджеру. Ожидайте звонка или сообщения в чате.')),
+      const SnackBar(content: Text('Заявка ушла отдельным тикетом менеджеру.')),
     );
-    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final tickets = widget.store.tickets.where((t) => t.kind == 'vin').toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Подбор запчастей по VIN')),
+      appBar: AppBar(
+        title: const Text('Подбор запчастей по VIN'),
+        actions: [
+          if (tickets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(child: CircleAvatar(radius: 12, backgroundColor: vagRed, child: Text('${tickets.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))),
+            ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Точные детали для вашего автомобиля. Заявка приходит менеджеру в веб-админку — не витрина склада.', style: TextStyle(color: vagMuted, height: 1.4)),
+          const Text('Каждая заявка уходит отдельно в админку, не в общий чат.', style: TextStyle(color: vagMuted, height: 1.4)),
           const SizedBox(height: 16),
           TextField(controller: vinCtrl, decoration: const InputDecoration(labelText: 'VIN'), textCapitalization: TextCapitalization.characters),
           const SizedBox(height: 12),
           TextField(controller: partCtrl, decoration: const InputDecoration(labelText: 'Наименование запчасти'), minLines: 2, maxLines: 4),
           const SizedBox(height: 20),
-          FilledButton(onPressed: send, child: const Text('Отправить менеджеру')),
+          FilledButton(onPressed: send, child: const Text('Отправить заявку')),
+          const SizedBox(height: 24),
+          Text('Мои заявки (${tickets.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (tickets.isEmpty) const Text('Пока нет заявок по VIN', style: TextStyle(color: vagMuted)),
+          ...tickets.map(
+            (t) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const Icon(Icons.search, color: vagRed),
+                title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(t.subtitle, style: const TextStyle(color: vagMuted)),
+                trailing: Text(t.status, style: const TextStyle(fontSize: 11, color: vagMuted)),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -89,11 +89,10 @@ class _BookingFlowState extends State<BookingFlow> {
           context: context,
           builder: (_) => AlertDialog(
             backgroundColor: vagCard,
-            title: const Text('Заявка в STOCRM'),
+            title: const Text('Заявка принята'),
             content: Text(
-              oid == null
-                  ? 'Ожидайте подтверждения звонка или сообщения.'
-                  : 'Сделка № $oid в воронке «Неразобранное». Ожидайте звонка или сообщения.',
+              '${res?['message'] ?? 'Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения'}'
+              '${oid == null ? '' : '\nСделка № $oid.'}',
             ),
             actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Понятно'))],
           ),
@@ -119,8 +118,8 @@ class _BookingFlowState extends State<BookingFlow> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: vagCard,
-        title: const Text('Вы записаны'),
-        content: const Text('Локальный прототип: BFF не ответил, заявка только в приложении. Поднимите сервер, чтобы писать в STOCRM.'),
+            title: const Text('Заявка принята'),
+            content: const Text('Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения'),
         actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Понятно'))],
       ),
     );
@@ -239,8 +238,8 @@ class _BookingFlowState extends State<BookingFlow> {
           children: widget.store.branches
               .map((b) => _choice(
                     selected: branch?.id == b.id,
-                    title: '${b.name}${b.distanceKm > 0 ? ' · ${b.distanceKm.toStringAsFixed(1)} км' : ''}',
-                    subtitle: '${b.address}\n${b.hours}',
+                    title: b.address.isNotEmpty ? b.address : b.name,
+                    subtitle: '${b.name}${b.distanceKm > 0 ? ' · ${b.distanceKm.toStringAsFixed(1)} км' : ''}\n${b.hours}',
                     onTap: () => setState(() {
                       branch = b;
                       slot = null;
@@ -290,7 +289,7 @@ class _BookingFlowState extends State<BookingFlow> {
                 children: crmSlots.map((s) {
                   final on = slot == s.at;
                   return ChoiceChip(
-                    label: Text(s.free > 1 ? '${s.label} · ${s.free}' : s.label),
+                    label: Text(s.label),
                     selected: on,
                     onSelected: (_) => setState(() => slot = s.at),
                   );
@@ -311,7 +310,8 @@ class _BookingFlowState extends State<BookingFlow> {
                     Text(car?.title.isNotEmpty == true ? car!.title : 'Авто уточнит менеджер', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
                     Text(car?.plate ?? 'без госномера', style: const TextStyle(color: vagMuted)),
                     const SizedBox(height: 10),
-                    Text(branch?.name ?? '', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(branch?.address.isNotEmpty == true ? branch!.address : (branch?.name ?? ''), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (branch?.name.isNotEmpty == true && branch?.address.isNotEmpty == true) Text(branch!.name, style: const TextStyle(color: vagMuted)),
                     if (slot != null) Text(DateFormat('d MMMM, HH:mm', 'ru').format(slot!)),
                     if (service != null) Text(service!.title, style: const TextStyle(color: vagRed)),
                   ],
@@ -347,7 +347,7 @@ class _BookingFlowState extends State<BookingFlow> {
             ],
             const SizedBox(height: 12),
             const Text(
-              'После отправки ожидайте подтверждения звонка или сообщения. Слот не бронь поста до подтверждения приёмкой.',
+              'Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения.',
               style: TextStyle(color: vagMuted, fontSize: 12, height: 1.35),
             ),
           ],

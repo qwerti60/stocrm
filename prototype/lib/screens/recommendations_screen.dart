@@ -9,26 +9,45 @@ class RecommendationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final grouped = <String, List<RepairRec>>{};
+    for (final r in store.recommendations) {
+      final key = r.car.isEmpty ? 'Авто не указано' : '${r.car}${r.plate.isNotEmpty ? ' · ${r.plate}' : ''}';
+      grouped.putIfAbsent(key, () => []).add(r);
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text('Рекомендации', style: TextStyle(fontWeight: FontWeight.w800))),
+      appBar: AppBar(title: const Text('Рекомендации по ремонту', style: TextStyle(fontWeight: FontWeight.w800))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('То, что мастер указал в CRM после осмотра. Не ручной контент приложения.', style: TextStyle(color: vagMuted)),
+          const Text('Рекомендации привязаны к автомобилю. Лампа на главной горит, пока есть активные.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),
           if (store.recommendations.isEmpty)
-            const Text('В CRM нет открытых рекомендаций — это нормально, не ошибка.', style: TextStyle(color: vagMuted)),
-          ...store.recommendations.map(
-            (r) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const Icon(Icons.tips_and_updates_outlined, color: vagRed),
-                title: Text(r),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store))),
+            const Text('Активных рекомендаций нет.', style: TextStyle(color: vagMuted)),
+          for (final entry in grouped.entries) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.directions_car, color: vagRed, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w800))),
+                  CircleAvatar(radius: 10, backgroundColor: vagRed, child: Text('${entry.value.length}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+                ],
               ),
             ),
-          ),
+            ...entry.value.map(
+              (r) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.tips_and_updates, color: vagRed),
+                  title: Text(r.title),
+                  subtitle: r.subtitle.isEmpty ? null : Text(r.subtitle, style: const TextStyle(color: vagMuted)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store))),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

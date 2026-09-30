@@ -66,12 +66,15 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   final MockStore store = MockStore();
+  bool booting = true;
 
   @override
   void initState() {
     super.initState();
     store.addListener(_onStore);
-    store.refreshBranches();
+    store.bootstrap().whenComplete(() {
+      if (mounted) setState(() => booting = false);
+    });
   }
 
   @override
@@ -85,6 +88,9 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (booting) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator(color: vagRed)));
+    }
     if (!store.shortsDone) {
       return ShortsScreen(onDone: store.finishShorts);
     }
@@ -161,14 +167,25 @@ class _ShellScreenState extends State<ShellScreen> {
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Главная'),
-          NavigationDestination(icon: Icon(Icons.directions_car_outlined), selectedIcon: Icon(Icons.directions_car), label: 'Гараж'),
-          NavigationDestination(icon: Icon(Icons.event_available_outlined), selectedIcon: Icon(Icons.event_available), label: 'Запись'),
-          NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on), label: 'Адреса'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Чаты'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
+        onDestinationSelected: (i) {
+          if (i == 4) widget.store.markChatRead();
+          setState(() => _index = i);
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Главная'),
+          const NavigationDestination(icon: Icon(Icons.directions_car_outlined), selectedIcon: Icon(Icons.directions_car), label: 'Гараж'),
+          const NavigationDestination(icon: Icon(Icons.event_available_outlined), selectedIcon: Icon(Icons.event_available), label: 'Запись'),
+          const NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on), label: 'Адреса'),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: store.unreadChat > 0 || store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').isNotEmpty,
+              label: Text('${store.unreadChat + store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').length}'),
+              child: const Icon(Icons.chat_bubble_outline),
+            ),
+            selectedIcon: const Icon(Icons.chat_bubble),
+            label: 'Чаты',
+          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
         ],
       ),
     );

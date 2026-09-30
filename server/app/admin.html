@@ -49,8 +49,10 @@
     <h1><span>VAG MARKET</span> · админка</h1>
     <span class="muted" id="who"></span>
     <nav class="tabs" id="tabs" hidden>
-      <button class="on" data-tab="chat" onclick="tab('chat')">Чат и VIN</button>
+      <button class="on" data-tab="chat" onclick="tab('chat')">Чат</button>
+      <button data-tab="tickets" onclick="tab('tickets')">Заявки <span id="tBadge" class="muted"></span></button>
       <button data-tab="push" onclick="tab('push')">Рассылки</button>
+      <button data-tab="promos" onclick="tab('promos')">Спецпредложения</button>
       <button data-tab="shorts" onclick="tab('shorts')">Шортсы</button>
       <button data-tab="smtp" onclick="tab('smtp')">Почта</button>
     </nav>
@@ -68,8 +70,6 @@
       <aside>
         <h2>Диалоги</h2>
         <div id="threads"></div>
-        <h2>VIN-заявки</h2>
-        <div id="vins"></div>
       </aside>
       <main>
         <div class="muted" id="head">Выберите диалог слева</div>
@@ -81,19 +81,26 @@
         </form>
       </main>
     </div>
+    <div class="pane" id="pane-tickets">
+      <h2>Заявки</h2>
+      <p class="muted">VIN-подбор и запись на ремонт — отдельно от чата. Число заявок в шапке вкладки.</p>
+      <div id="ticketList"></div>
+    </div>
     <div class="pane" id="pane-push">
       <div class="grid2">
         <div>
           <h2>Новая рассылка</h2>
-          <p class="muted">Уйдёт в inbox приложения и на главную (если закрепить). Системный FCM — когда будет ключ Firebase.</p>
+          <p class="muted">Уйдёт пушем и в чат клиенту. В «Спецпредложения» на главной не попадает. Excel — до нескольких тысяч номеров, без лимита в админке.</p>
           <label>Заголовок</label>
-          <input id="cTitle" style="width:100%" placeholder="−20% на шиномонтаж" />
-          <label>Текст пуша</label>
-          <textarea id="cBody" placeholder="До конца месяца, любой филиал"></textarea>
-          <label>Бейдж на карточке</label>
-          <input id="cBadge" value="Акция" style="width:100%" />
-          <label>Сегмент</label>
-          <select id="cSeg" style="width:100%" onchange="document.getElementById('cBranch').parentElement.style.display = this.value==='branch' ? 'block' : 'none'">
+          <input id="cTitle" style="width:100%" placeholder="Напоминание о ТО" />
+          <label>Текст сообщения</label>
+          <textarea id="cBody" placeholder="Текст пуша / сообщения в чат"></textarea>
+          <label>Номера (по одному в строке или через запятую)</label>
+          <textarea id="cPhones" placeholder="89829209223&#10;79139142994"></textarea>
+          <label>Или Excel / CSV</label>
+          <input id="cFile" type="file" accept=".xlsx,.csv,.txt" style="width:100%" />
+          <label>Сегмент, если список пуст</label>
+          <select id="cSeg" style="width:100%">
             <option value="all">Все, кто входил в приложение</option>
             <option value="inactive">Давно не был (90+ дней без ЗН)</option>
             <option value="branch">Филиал последнего визита</option>
@@ -102,9 +109,8 @@
             <label>CUSTOMER_ID филиала</label>
             <input id="cBranch" placeholder="2113" style="width:100%" />
           </div>
-          <label><input type="checkbox" id="cPin" checked /> Закрепить на главной</label>
           <form onsubmit="sendCampaign(event)" style="margin-top:.8rem">
-            <button>Отправить</button>
+            <button>Отправить рассылку</button>
           </form>
           <p class="muted" id="cMsg"></p>
         </div>
@@ -113,6 +119,30 @@
           <div id="aud" class="muted">—</div>
           <h2>История рассылок</h2>
           <div id="camps"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane" id="pane-promos">
+      <div class="grid2">
+        <div>
+          <h2>Карточка на главной</h2>
+          <p class="muted">Мини-картинка как в блоке спецпредложений. Рассылка сюда не пишется.</p>
+          <label>Заголовок</label>
+          <input id="pTitle" style="width:100%" placeholder="Замена масла" />
+          <label>Подзаголовок / цена</label>
+          <input id="pBody" style="width:100%" placeholder="от 4 990 ₽" />
+          <label>Бейдж</label>
+          <input id="pBadge" value="Акция" style="width:100%" />
+          <label>Картинка</label>
+          <input id="pImage" type="file" accept="image/*" style="width:100%" />
+          <form onsubmit="savePromo(event)" style="margin-top:.8rem">
+            <button>Закрепить на главной</button>
+          </form>
+          <p class="muted" id="pMsg"></p>
+        </div>
+        <div>
+          <h2>Сейчас на главной</h2>
+          <div id="promoList"></div>
         </div>
       </div>
     </div>
@@ -198,6 +228,8 @@
       if (id === "push") loadPush();
       if (id === "shorts") loadShorts();
       if (id === "smtp") loadSmtp();
+      if (id === "tickets") loadTickets();
+      if (id === "promos") loadPromos();
     }
     async function login(e) {
       e.preventDefault();
@@ -217,20 +249,26 @@
     }
     async function refresh() {
       const th = await api("/admin/api/threads");
-      const vins = await api("/admin/api/vin");
+      const tickets = await api("/admin/api/tickets").catch(() => ({ items: [], vin: 0, book: 0 }));
+      document.getElementById("tBadge").textContent = tickets.items && tickets.items.length ? `(${tickets.items.length})` : "";
       document.getElementById("threads").innerHTML = (th.threads || []).map(t =>
         `<div class="thread ${t.key===S.thread?'on':''}" onclick="openThread('${t.key}')">
           <b>${t.name || t.phone || t.key}</b>
           <div class="muted">${t.phone || ''} · ${t.count} сообщ.</div>
           <div class="muted">${(t.last||'').slice(0,80)}</div>
         </div>`).join("") || '<p class="muted">Пока пусто — напишите из приложения</p>';
-      document.getElementById("vins").innerHTML = (vins.items || []).map(v =>
-        `<div class="vin" onclick="openThread('${v.key}')">
-          <b>${v.vin}</b>
-          <div class="muted">${v.part}</div>
-          <div class="muted">${v.phone || v.key}</div>
-        </div>`).join("") || '<p class="muted">Нет VIN-заявок</p>';
       if (S.thread) await openThread(S.thread, false);
+    }
+    async function loadTickets() {
+      const d = await api("/admin/api/tickets");
+      document.getElementById("tBadge").textContent = d.items && d.items.length ? `(${d.items.length})` : "";
+      document.getElementById("ticketList").innerHTML = (d.items || []).map(v =>
+        `<div class="vin">
+          <b>${v.kind === "book" ? "Запись" : "VIN"} · ${v.vin || v.branch || ""}</b>
+          <div class="muted">${v.part || v.comment || v.when || ""}</div>
+          <div class="muted">${v.phone || v.key} · ${v.name || ""} · ${v.status || "new"}</div>
+        </div>`
+      ).join("") || '<p class="muted">Заявок нет</p>';
     }
     async function openThread(key, refetch = true) {
       S.thread = key;
@@ -274,19 +312,69 @@
       const msg = document.getElementById("cMsg");
       msg.textContent = "Отправка…";
       try {
-        const d = await api("/admin/api/campaigns", {
-          method: "POST",
-          body: JSON.stringify({
-            title: document.getElementById("cTitle").value,
-            body: document.getElementById("cBody").value,
-            badge: document.getElementById("cBadge").value,
-            segment: document.getElementById("cSeg").value,
-            branch_id: document.getElementById("cBranch").value,
-            pin: document.getElementById("cPin").checked,
-          }),
-        });
-        msg.innerHTML = `<span class="ok">Готово: inbox ${d.sent} контакт(ов). Карточка на главной закреплена.</span>`;
+        const file = document.getElementById("cFile").files[0];
+        if (file) {
+          const fd = new FormData();
+          fd.append("title", document.getElementById("cTitle").value);
+          fd.append("body", document.getElementById("cBody").value);
+          fd.append("badge", "Пуш");
+          fd.append("file", file);
+          const r = await fetch("/admin/api/campaigns/upload", {
+            method: "POST",
+            headers: { "X-BFF-Secret": S.key },
+            body: fd,
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.detail || r.status);
+          msg.innerHTML = `<span class="ok">Готово: сообщений ${d.sent}. Пуш ушёл в чат, не в спецпредложения.</span>`;
+        } else {
+          const phones = document.getElementById("cPhones").value.split(/[\s,;]+/).filter(Boolean);
+          const d = await api("/admin/api/campaigns", {
+            method: "POST",
+            body: JSON.stringify({
+              title: document.getElementById("cTitle").value,
+              body: document.getElementById("cBody").value,
+              badge: "Пуш",
+              segment: document.getElementById("cSeg").value,
+              branch_id: document.getElementById("cBranch").value,
+              pin: false,
+              kind: "push",
+              phones,
+            }),
+          });
+          msg.innerHTML = `<span class="ok">Готово: сообщений ${d.sent}.</span>`;
+        }
         await loadPush();
+      } catch (err) {
+        msg.textContent = err.message || "Ошибка";
+      }
+    }
+    async function loadPromos() {
+      const c = await api("/admin/api/campaigns");
+      document.getElementById("promoList").innerHTML = (c.promos || []).map(x =>
+        `<div class="camp"><b>${esc(x.title)}</b><div class="muted">${esc(x.subtitle || x.body || "")}</div></div>`
+      ).join("") || '<p class="muted">Пока шаблонные карточки</p>';
+    }
+    async function savePromo(e) {
+      e.preventDefault();
+      const msg = document.getElementById("pMsg");
+      msg.textContent = "Сохранение…";
+      try {
+        const fd = new FormData();
+        fd.append("title", document.getElementById("pTitle").value);
+        fd.append("body", document.getElementById("pBody").value);
+        fd.append("badge", document.getElementById("pBadge").value);
+        const img = document.getElementById("pImage").files[0];
+        if (img) fd.append("image", img);
+        const r = await fetch("/admin/api/promos", {
+          method: "POST",
+          headers: { "X-BFF-Secret": S.key },
+          body: fd,
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || r.status);
+        msg.innerHTML = '<span class="ok">Карточка на главной</span>';
+        await loadPromos();
       } catch (err) {
         msg.textContent = err.message || "Ошибка";
       }

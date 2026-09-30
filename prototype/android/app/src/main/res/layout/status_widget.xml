@@ -4,33 +4,58 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/vag_black"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="12dp">
 
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="VAG MARKET"
+        android:gravity="center"
+        android:letterSpacing="0.18"
+        android:text="VAG"
+        android:textColor="@color/vag_red"
+        android:textSize="13sp"
+        android:textStyle="bold|italic" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:letterSpacing="0.12"
+        android:text="MARKET"
         android:textColor="@color/vag_red"
         android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.08" />
+        android:textStyle="bold|italic" />
+
+    <ImageView
+        android:id="@+id/widget_art"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginTop="6dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="@string/widget_description"
+        android:scaleType="centerCrop"
+        android:src="@drawable/widget_recs_car"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/widget_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
+        android:gravity="center"
         android:text="Всё в порядке"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/widget_sub"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
+        android:gravity="center"
         android:text="Запись и статус авто"
         android:textColor="#B3FFFFFF"
         android:textSize="12sp" />
