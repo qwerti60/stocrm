@@ -68,6 +68,10 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Чтобы показать ближайший филиал VAG Market на карте</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Геолокация нужна, чтобы найти ближайший филиал VAG Market на карте. В фоне она не используется.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Геолокация нужна, чтобы найти ближайший филиал VAG Market на карте. В фоне она не используется.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
