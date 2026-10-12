@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/ticket_ui.dart';
 
 class VinScreen extends StatefulWidget {
   const VinScreen({super.key, required this.store});
@@ -49,15 +50,17 @@ class _VinScreenState extends State<VinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tickets = widget.store.tickets.where((t) => t.kind == 'vin').toList();
+    final vinTickets = widget.store.tickets.where((t) => t.kind == 'vin').toList();
+    final bookTickets = widget.store.tickets.where((t) => t.kind == 'book').toList();
+    final open = widget.store.openTicketCount;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Подбор запчастей по VIN'),
         actions: [
-          if (tickets.isNotEmpty)
+          if (open > 0)
             Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: Center(child: CircleAvatar(radius: 12, backgroundColor: vagRed, child: Text('${tickets.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))),
+              child: Center(child: CircleAvatar(radius: 12, backgroundColor: vagRed, child: Text('$open', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))),
             ),
         ],
       ),
@@ -72,21 +75,28 @@ class _VinScreenState extends State<VinScreen> {
           const SizedBox(height: 20),
           FilledButton(onPressed: send, child: const Text('Отправить заявку')),
           const SizedBox(height: 24),
-          Text('Мои заявки (${tickets.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text('Мои заявки VIN (${vinTickets.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          if (tickets.isEmpty) const Text('Пока нет заявок по VIN', style: TextStyle(color: vagMuted)),
-          ...tickets.map(
-            (t) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const Icon(Icons.search, color: vagRed),
-                title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(t.subtitle, style: const TextStyle(color: vagMuted)),
-                trailing: Text(t.status, style: const TextStyle(fontSize: 11, color: vagMuted)),
-              ),
-            ),
-          ),
+          if (vinTickets.isEmpty) const Text('Пока нет заявок по VIN', style: TextStyle(color: vagMuted)),
+          ...vinTickets.map((t) => _ticketTile(t, Icons.search)),
+          const SizedBox(height: 16),
+          Text('Заявки на запись (${bookTickets.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (bookTickets.isEmpty) const Text('Пока нет заявок на запись', style: TextStyle(color: vagMuted)),
+          ...bookTickets.map((t) => _ticketTile(t, Icons.event_available)),
         ],
+      ),
+    );
+  }
+
+  Widget _ticketTile(AppTicket t, IconData icon) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon, color: vagRed),
+        title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(t.subtitle, style: const TextStyle(color: vagMuted)),
+        trailing: ticketStatusChip(t.status, label: t.statusLabel),
       ),
     );
   }

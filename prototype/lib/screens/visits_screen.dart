@@ -50,7 +50,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
         title: Text(v.serviceTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text(
           '${v.carPlate} · ${v.branchName}\n${df.format(v.when)}'
-          '${v.works.isNotEmpty ? '\nРаботы: ${v.works.join(', ')}' : ''}',
+          '${v.works.isNotEmpty ? '\n${v.works.take(3).join(' · ')}' : ''}'
+          '${v.parts.isNotEmpty ? '\nЗапчасти: ${v.parts.take(2).join(', ')}' : ''}',
           style: const TextStyle(color: vagMuted),
         ),
         isThreeLine: true,
@@ -70,7 +71,7 @@ class WorkOrderScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM yyyy, HH:mm', 'ru');
     return Scaffold(
-      appBar: AppBar(title: Text('Заказ-наряд № ${visit.id}')),
+      appBar: AppBar(title: Text('Сделка #${visit.id}')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

@@ -6,6 +6,8 @@ server/.env
 .DS_Store
 prototype/build/
 prototype/.dart_tool/
+dist/*.apk
+dist/DRIVE-STO*.apk
 .tools/
 server/data/
 server/secrets/

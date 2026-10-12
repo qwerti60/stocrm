@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
@@ -65,7 +66,32 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
             ),
           ),
-          const SizedBox(height: 12),
+          if (store.openTicketCount > 0) ...[
+            const Text('Открытые заявки', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.inbox_outlined, color: vagRed),
+                title: Text('${store.openTicketCount} в обработке'),
+                subtitle: const Text('VIN и запись в сервис', style: TextStyle(color: vagMuted)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+            const Text('Виджет на главном экране', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                  'Android: долгое нажатие на рабочий стол → Виджеты → VAG Market. Виджет подскажет о рекомендациях и готовности авто.',
+                  style: TextStyle(color: vagMuted, height: 1.4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: ListTile(
               leading: const Icon(Icons.privacy_tip_outlined),

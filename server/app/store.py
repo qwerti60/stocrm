@@ -230,6 +230,37 @@ def list_tickets(key: str | None = None) -> list[dict[str, Any]]:
     return rows
 
 
+def update_ticket(ticket_id: str, status: str) -> dict[str, Any] | None:
+    status = (status or "new").strip().lower()
+    if status not in ("new", "processing", "done"):
+        status = "new"
+    with _LOCK:
+        data = _load()
+        for bucket in ("vin", "bookings"):
+            rows = data.get(bucket) or []
+            for i, row in enumerate(rows):
+                if str(row.get("id")) != str(ticket_id):
+                    continue
+                updated = dict(row)
+                updated["status"] = status
+                updated["updated"] = int(time.time())
+                rows[i] = updated
+                data[bucket] = rows
+                _save(data)
+                return updated
+    return None
+
+
+def contact_id_from_key(key: str) -> int | None:
+    s = str(key or "")
+    if s.startswith("contact:"):
+        try:
+            return int(s.split(":", 1)[1])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def put_session(token: str, user: dict[str, Any]) -> None:
     if not token:
         return

@@ -49,6 +49,8 @@ from app.store import (
     list_threads,
     list_tickets,
     list_vin,
+    contact_id_from_key,
+    update_ticket,
     mark_campaign_sent,
     parse_phones,
     phones_from_table,
@@ -202,7 +204,7 @@ def _car_visible(c: dict[str, Any], hidden: set[int]) -> bool:
     return True
 
 
-def _offer_out(o: dict[str, Any], works: list[str] | None = None) -> dict[str, Any]:
+def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[str] | None = None) -> dict[str, Any]:
     status_id = int(o.get("OFFER_STATUS_ID") or 0)
     title = str(o.get("STATUS_NAME") or "")
     stage = _stage(status_id, title)
@@ -229,6 +231,7 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None) -> dict[str, A
         "calendar_from": o.get("CALENDAR_RECORD_DATE_FROM"),
         "calendar_to": o.get("CALENDAR_RECORD_DATE_TO"),
         "works": works or [],
+        "parts": parts or [],
         "steps": _funnel_steps(status_id, title),
     }
 
@@ -324,6 +327,10 @@ class ChatIn(BaseModel):
 class VinIn(BaseModel):
     vin: str
     part: str
+
+
+class TicketStatusIn(BaseModel):
+    status: str = Field(..., description="new | processing | done")
 
 
 class StaffReplyIn(BaseModel):
@@ -686,8 +693,19 @@ def visits(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     if not cid:
         return {"offers": []}
     offers = stocrm.offers_by_contact(int(cid), all_boards=True, pages=20)
-    works = stocrm.works_index([int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")])
-    return {"offers": [_offer_out(o, works.get(int(o.get("OFFER_ID") or 0), [])) for o in offers]}
+    oids = [int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")]
+    works = stocrm.works_index(oids)
+    parts = stocrm.materials_index(oids)
+    return {
+        "offers": [
+            _offer_out(
+                o,
+                works.get(int(o.get("OFFER_ID") or 0), []),
+                parts.get(int(o.get("OFFER_ID") or 0), []),
+            )
+            for o in offers
+        ]
+    }
 
 
 @app.get("/v1/slots")
@@ -854,11 +872,28 @@ def vin_post(body: VinIn, authorization: str | None = Header(default=None)) -> d
     return {"ok": True, "item": row, "message": "Заявка ушла менеджеру. Это не витрина склада."}
 
 
+_TICKET_STATUS_LABELS = {"new": "Новая", "processing": "В работе", "done": "Отработана"}
+
+
+def _ticket_client(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    st = str(out.get("status") or "new").lower()
+    out["status"] = st
+    out["status_label"] = _TICKET_STATUS_LABELS.get(st, st)
+    return out
+
+
 @app.get("/v1/tickets")
 def tickets_get(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
-    items = list_tickets(_user_key(user))
-    return {"items": items, "vin": sum(1 for x in items if x.get("kind") == "vin"), "book": sum(1 for x in items if x.get("kind") == "book")}
+    items = [_ticket_client(x) for x in list_tickets(_user_key(user))]
+    open_n = sum(1 for x in items if x.get("status") != "done")
+    return {
+        "items": items,
+        "vin": sum(1 for x in items if x.get("kind") == "vin"),
+        "book": sum(1 for x in items if x.get("kind") == "book"),
+        "open": open_n,
+    }
 
 
 @app.get("/v1/bonuses")
@@ -882,19 +917,39 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
     if cid:
         try:
             offers = stocrm.offers_by_contact(int(cid))
-            works = stocrm.works_index([int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")])
+            oids = [int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")]
+            works = stocrm.works_index(oids)
+            seen: set[str] = set()
             for o in offers:
-                mapped = _offer_out(o, works.get(int(o.get("OFFER_ID") or 0), []))
-                if mapped.get("is_history"):
+                oid = int(o.get("OFFER_ID") or 0)
+                mapped = _offer_out(o, works.get(oid, []))
+                if mapped.get("is_history") or mapped.get("stage") == "closed":
                     continue
+                car_title = mapped.get("car") or ""
                 for w in mapped.get("works") or []:
+                    key = f"{car_title}|{w}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     items.append({
                         "title": w,
                         "subtitle": mapped.get("status") or "открытая заявка",
                         "offer_id": mapped.get("id"),
-                        "car": mapped.get("car") or "",
+                        "car": car_title,
                         "car_id": "",
                     })
+                comment = str(o.get("COMMENT") or o.get("OFFER_COMMENT") or "").strip()
+                if comment and any(x in comment.lower() for x in ("рекоменд", "советуем", "пора замен")):
+                    key = f"{car_title}|c|{comment[:80]}"
+                    if key not in seen:
+                        seen.add(key)
+                        items.append({
+                            "title": comment[:200],
+                            "subtitle": "из комментария к сделке",
+                            "offer_id": mapped.get("id"),
+                            "car": car_title,
+                            "car_id": "",
+                        })
             cars = stocrm.cars_by_contact(int(cid))
             for c in cars:
                 km = c.get("MILEAGE")
@@ -902,6 +957,7 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
                 mapped_car = _car_out(c)
                 title = mapped_car.get("title") or "Авто"
                 plate = mapped_car.get("plate") or ""
+                car_id = str(mapped_car.get("id") or "")
                 if nxt and km:
                     left = int(nxt) - int(km)
                     items.append({
@@ -909,7 +965,24 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
                         "subtitle": "пробег из карточки авто",
                         "car": title,
                         "plate": plate,
-                        "car_id": str(mapped_car.get("id") or ""),
+                        "car_id": car_id,
+                    })
+                for field, val in c.items():
+                    if "RECOMM" not in str(field).upper():
+                        continue
+                    text = str(val or "").strip()
+                    if len(text) < 4:
+                        continue
+                    key = f"{car_id}|f|{text[:80]}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    items.append({
+                        "title": text[:200],
+                        "subtitle": "рекомендация из карточки авто",
+                        "car": title,
+                        "plate": plate,
+                        "car_id": car_id,
                     })
         except Exception:
             pass
@@ -946,10 +1019,12 @@ def visit_pdf(oid: int, authorization: str | None = Header(default=None)):
     found = next((o for o in offers if int(o.get("OFFER_ID") or 0) == int(oid)), None)
     if not found:
         raise HTTPException(404, "Заказ-наряд не найден")
-    mapped = _offer_out(found)
+    works_map = stocrm.works_index([oid])
+    parts_map = stocrm.materials_index([oid])
+    mapped = _offer_out(found, works_map.get(oid, []), parts_map.get(oid, []))
     if not mapped.get("successful"):
         raise HTTPException(400, "PDF доступен только по успешно реализованным сделкам")
-    works = stocrm.works_index([oid]).get(oid, [])
+    works = works_map.get(oid, [])
     when = mapped.get("calendar_from") or mapped.get("created") or ""
     pdf = work_order_pdf(
         {
@@ -1313,12 +1388,32 @@ async def admin_promos_post(
 @app.get("/admin/api/tickets")
 def admin_tickets(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
     require_admin(x_bff_secret)
-    items = list_tickets()
+    items = [_ticket_client(x) for x in list_tickets()]
     return {
         "items": items,
         "vin": sum(1 for x in items if x.get("kind") == "vin"),
         "book": sum(1 for x in items if x.get("kind") == "book"),
+        "open": sum(1 for x in items if x.get("status") != "done"),
     }
+
+
+@app.patch("/admin/api/tickets/{ticket_id}")
+def admin_ticket_status(
+    ticket_id: str,
+    body: TicketStatusIn,
+    x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    row = update_ticket(ticket_id, body.status)
+    if not row:
+        raise HTTPException(404, "Заявка не найдена")
+    cid = contact_id_from_key(str(row.get("key") or ""))
+    if cid and row.get("status") == "done":
+        kind = "VIN" if row.get("kind") == "vin" else "Запись"
+        add_note(int(cid), f"Заявка отработана ({kind})", "Менеджер закрыл заявку. Откройте раздел заявок в приложении.", kind="ticket")
+    elif cid and row.get("status") == "processing":
+        add_note(int(cid), "Заявка в работе", "Менеджер принял заявку в обработку.", kind="ticket")
+    return {"ok": True, "item": _ticket_client(row)}
 
 
 @app.get("/admin/api/shorts")

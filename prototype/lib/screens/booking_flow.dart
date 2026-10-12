@@ -82,7 +82,7 @@ class _BookingFlowState extends State<BookingFlow> {
           car: car ??
               Vehicle(id: '', plate: 'уточнит менеджер', make: 'Авто', model: 'из заявки', year: 0, mileage: 0),
         );
-        await widget.store.refreshVisits();
+        await Future.wait([widget.store.refreshVisits(), widget.store.refreshTickets()]);
         if (!mounted) return;
         final oid = res?['offer_id'];
         await showDialog<void>(
@@ -133,15 +133,24 @@ class _BookingFlowState extends State<BookingFlow> {
       slotsLoading = true;
       slotsHint = null;
     });
-    final list = await widget.store.fetchSlots(day, b.id);
-    if (!mounted) return;
-    setState(() {
-      crmSlots = list;
-      slotsLoading = false;
-      slotsHint = widget.store.crmLive
-          ? 'Свободные окна по календарю постов филиала. После заявки ожидайте подтверждения.'
-          : 'Локальный график (BFF недоступен).';
-    });
+    try {
+      final list = await widget.store.fetchSlots(day, b.id);
+      if (!mounted) return;
+      setState(() {
+        crmSlots = list;
+        slotsLoading = false;
+        slotsHint = widget.store.crmLive
+            ? 'Показаны только свободные часы по календарю постов. После заявки ожидайте звонок для подтверждения.'
+            : 'Свободные окна с сервера записи.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        crmSlots = [];
+        slotsLoading = false;
+        slotsHint = 'Не удалось загрузить свободное время. Выберите другую дату или филиал.';
+      });
+    }
   }
 
   @override

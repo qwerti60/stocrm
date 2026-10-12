@@ -185,12 +185,20 @@ class RepairRec {
 }
 
 class AppTicket {
-  AppTicket({required this.id, required this.kind, required this.title, this.subtitle = '', this.status = 'new'});
+  AppTicket({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.subtitle = '',
+    this.status = 'new',
+    this.statusLabel = '',
+  });
   final String id;
   final String kind;
   final String title;
   final String subtitle;
   final String status;
+  final String statusLabel;
 }
 
 class Promo {
@@ -393,6 +401,8 @@ class MockStore extends ChangeNotifier {
 
   int get vinTicketCount => tickets.where((t) => t.kind == 'vin').length;
 
+  int get openTicketCount => tickets.where((t) => t.status != 'done').length;
+
   void finishShorts() {
     shortsDone = true;
     notifyListeners();
@@ -550,7 +560,8 @@ class MockStore extends ChangeNotifier {
   }
 
   Future<void> registerPush() async {
-    if (api.token == null || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (api.token == null || kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS) return;
     try {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
@@ -758,9 +769,10 @@ class MockStore extends ChangeNotifier {
           if (m['works'] is List)
             for (final w in m['works'] as List) '$w',
         ];
+        final oid = '${m['id'] ?? mapped.length}';
         mapped.add(Visit(
-          id: '${m['id'] ?? mapped.length}',
-          serviceTitle: works.isNotEmpty ? works.first : '${m['status'] ?? 'Заказ-наряд'}',
+          id: oid,
+          serviceTitle: 'Сделка #$oid',
           branchName: '${m['branch'] ?? ''}',
           carPlate: '${m['car'] ?? ''}',
           when: _parseTs(m['calendar_from'] ?? m['created']),
@@ -969,11 +981,9 @@ class MockStore extends ChangeNotifier {
   }
 
   void markChatRead() {
-    final maxTs = chat.fold<int>(0, (m, e) => e.created > m ? e.created : m);
-    final next = maxTs == 0 ? DateTime.now().millisecondsSinceEpoch ~/ 1000 : maxTs;
-    if (next <= lastChatRead && maxTs > 0) return;
-    if (next == lastChatRead) return;
-    lastChatRead = next;
+    final staffTs = chat.where((m) => m.fromStaff).fold<int>(0, (m, e) => e.created > m ? e.created : m);
+    if (staffTs <= lastChatRead) return;
+    lastChatRead = staffTs;
     notifyListeners();
     _persist();
   }
@@ -993,6 +1003,7 @@ class MockStore extends ChangeNotifier {
               title: '${item['vin'] ?? item['branch'] ?? item['when'] ?? 'Заявка'}',
               subtitle: '${item['part'] ?? item['comment'] ?? item['when'] ?? ''}',
               status: '${item['status'] ?? 'new'}',
+              statusLabel: '${item['status_label'] ?? ''}',
             ),
       ];
       notifyListeners();
@@ -1080,25 +1091,23 @@ class MockStore extends ChangeNotifier {
 
   Future<List<SlotOption>> fetchSlots(DateTime day, String branchId) async {
     final date = DateFormat('yyyy-MM-dd').format(day);
-    try {
-      final res = await api.get('/v1/slots', query: {'branch_id': branchId, 'date': date});
-      final raw = res['slots'];
-      if (raw is List) {
-        final out = <SlotOption>[];
-        for (final item in raw) {
-          if (item is! Map) continue;
-          final at = DateTime.tryParse('${item['at'] ?? ''}');
-          if (at == null) continue;
-          out.add(SlotOption(
-            at: at,
-            label: '${item['label'] ?? DateFormat('HH:mm').format(at)}',
-            free: int.tryParse('${item['free'] ?? 1}') ?? 1,
-          ));
-        }
-        return out;
-      }
-    } catch (_) {}
-    return [for (final t in slotsFor(day, branchId: branchId)) SlotOption(at: t, label: DateFormat('HH:mm').format(t))];
+    final res = await api.get('/v1/slots', query: {'branch_id': branchId, 'date': date});
+    final raw = res['slots'];
+    if (raw is! List) return [];
+    final out = <SlotOption>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final at = DateTime.tryParse('${item['at'] ?? ''}');
+      if (at == null) continue;
+      final free = int.tryParse('${item['free'] ?? 0}') ?? 0;
+      if (free <= 0) continue;
+      out.add(SlotOption(
+        at: at,
+        label: '${item['label'] ?? DateFormat('HH:mm').format(at)}',
+        free: free,
+      ));
+    }
+    return out;
   }
 
   void addVisit({

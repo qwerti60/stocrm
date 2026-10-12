@@ -266,9 +266,17 @@
         `<div class="vin">
           <b>${v.kind === "book" ? "Запись" : "VIN"} · ${v.vin || v.branch || ""}</b>
           <div class="muted">${v.part || v.comment || v.when || ""}</div>
-          <div class="muted">${v.phone || v.key} · ${v.name || ""} · ${v.status || "new"}</div>
+          <div class="muted">${v.phone || v.key} · ${v.name || ""} · <b>${v.status_label || v.status || "new"}</b></div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="ghost" onclick="ticketStatus('${v.id}','processing')">В работе</button>
+            <button type="button" class="ghost" onclick="ticketStatus('${v.id}','done')">Отработана</button>
+          </div>
         </div>`
       ).join("") || '<p class="muted">Заявок нет</p>';
+    }
+    async function ticketStatus(id, status) {
+      await api("/admin/api/tickets/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ status }) });
+      await loadTickets();
     }
     async function openThread(key, refetch = true) {
       S.thread = key;

@@ -11,6 +11,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 _FONT_CANDIDATES = [
+    Path(__file__).resolve().parent / "fonts" / "DejaVuSans.ttf",
     Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
     Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
     Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),

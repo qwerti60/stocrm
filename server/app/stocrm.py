@@ -289,38 +289,65 @@ class StoCrm:
         return _as_list(data)
 
     def works_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:
-        rows: list[dict[str, Any]] = []
-        try:
-            rows = _as_list(self.call("work/get_filtered", {"FILTER": {}, "PAGE": 1, "LIMIT": 80}))
-        except StoCrmError:
-            rows = []
         wanted = {int(x) for x in (offer_ids or []) if x}
         out: dict[int, list[str]] = {}
-        for w in rows:
-            oid = int(w.get("OFFER_ID") or 0)
-            if not oid:
-                continue
-            if wanted and oid not in wanted:
-                continue
-            desc = str(
-                w.get("DESCRIPTION") or w.get("TITLE") or w.get("NAME") or w.get("WORK_NAME") or ""
-            ).strip()
-            if desc:
-                out.setdefault(oid, []).append(desc[:160])
-        missing = [oid for oid in wanted if oid not in out][:8]
-        for oid in missing:
-            try:
-                extra = _as_list(
-                    self.call("work/get_filtered", {"FILTER": {"OFFER_ID": oid}, "PAGE": 1, "LIMIT": 20})
-                )
-            except StoCrmError:
-                continue
-            for w in extra:
+
+        def ingest(rows: list[dict[str, Any]]) -> None:
+            for w in rows:
+                oid = int(w.get("OFFER_ID") or 0)
+                if not oid or (wanted and oid not in wanted):
+                    continue
                 desc = str(
                     w.get("DESCRIPTION") or w.get("TITLE") or w.get("NAME") or w.get("WORK_NAME") or ""
                 ).strip()
                 if desc:
                     out.setdefault(oid, []).append(desc[:160])
+
+        if wanted:
+            for oid in sorted(wanted):
+                try:
+                    extra = _as_list(
+                        self.call("work/get_filtered", {"FILTER": {"OFFER_ID": oid}, "PAGE": 1, "LIMIT": 50})
+                    )
+                except StoCrmError:
+                    continue
+                ingest(extra)
+            return out
+
+        try:
+            rows = _as_list(self.call("work/get_filtered", {"FILTER": {}, "PAGE": 1, "LIMIT": 80}))
+        except StoCrmError:
+            rows = []
+        ingest(rows)
+        return out
+
+    def materials_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:
+        wanted = {int(x) for x in (offer_ids or []) if x}
+        if not wanted:
+            return {}
+        out: dict[int, list[str]] = {}
+        for oid in sorted(wanted):
+            rows: list[dict[str, Any]] = []
+            for method in ("material/get_filtered", "product/get_filtered", "spare/get_filtered"):
+                try:
+                    rows = _as_list(
+                        self.call(method, {"FILTER": {"OFFER_ID": oid}, "PAGE": 1, "LIMIT": 50})
+                    )
+                except StoCrmError:
+                    rows = []
+                if rows:
+                    break
+            for r in rows:
+                name = str(
+                    r.get("NAME")
+                    or r.get("TITLE")
+                    or r.get("PRODUCT_NAME")
+                    or r.get("MATERIAL_NAME")
+                    or r.get("DESCRIPTION")
+                    or ""
+                ).strip()
+                if name:
+                    out.setdefault(oid, []).append(name[:160])
         return out
 
 
