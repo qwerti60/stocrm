@@ -36,7 +36,17 @@ workflows:
         script: xcode-project use-profiles
       - name: Build IPA
         script: |
-          BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID") + 1))
+          set -e
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" || echo 0)
+          FROM_PUBSPEC=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
+          BUILD_NUMBER=$((LATEST + 1))
+          if [ "$BUILD_NUMBER" -lt "$FROM_PUBSPEC" ]; then
+            BUILD_NUMBER=$FROM_PUBSPEC
+          fi
+          if [ "$BUILD_NUMBER" -lt 2 ]; then
+            BUILD_NUMBER=2
+          fi
+          echo "TestFlight latest=$LATEST pubspec=$FROM_PUBSPEC -> build-number=$BUILD_NUMBER"
           flutter build ipa --release --no-tree-shake-icons \
             --build-name=1.0.3 \
             --build-number="$BUILD_NUMBER" \
