@@ -14,9 +14,8 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: ru.app72.stocrmMobileApp
-        # App Store Connect → App → General → Apple ID (число). Задайте в Codemagic, если lookup по bundle id врёт.
-        APP_STORE_APPLE_ID: ""
         API_BASE: http://45.81.33.7
+        # Опционально в UI Codemagic (Environment variables): APP_STORE_APPLE_ID — числовой Apple ID приложения.
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
