@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
+import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -74,6 +75,26 @@ class ProfileScreen extends StatelessWidget {
                 leading: const Icon(Icons.inbox_outlined, color: vagRed),
                 title: Text('${store.openTicketCount} в обработке'),
                 subtitle: const Text('VIN и запись в сервис', style: TextStyle(color: vagMuted)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
+            const Text('Уведомления', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.notifications_outlined, color: vagRed),
+                title: const Text('Настройки уведомлений iPhone'),
+                subtitle: const Text(
+                  'Системный вкл/выкл push. Если пункта нет — нажмите и разрешите в диалоге.',
+                  style: TextStyle(color: vagMuted),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await ensureIosNotificationRegistration();
+                  await openSystemAppSettings();
+                },
               ),
             ),
             const SizedBox(height: 12),

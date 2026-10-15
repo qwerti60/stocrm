@@ -16,6 +16,7 @@ import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/vin_screen.dart';
+import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 @pragma('vm:entry-point')
@@ -39,6 +40,9 @@ Future<void> _setupPushPermissions() async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await ensureIosNotificationRegistration();
+  }
   if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
     try {
       await Firebase.initializeApp();
