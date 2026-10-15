@@ -1,3 +1,4 @@
+# iOS TestFlight. Опционально в Codemagic UI: ASC_APP_ID (числовой Apple ID приложения).
 workflows:
   ios-testflight:
     name: iOS TestFlight
@@ -15,7 +16,6 @@ workflows:
       vars:
         BUNDLE_ID: ru.app72.stocrmMobileApp
         API_BASE: http://45.81.33.7
-        # Опционально в UI Codemagic (Environment variables): APP_STORE_APPLE_ID — числовой Apple ID приложения.
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
