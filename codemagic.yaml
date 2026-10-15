@@ -47,7 +47,7 @@ workflows:
       - name: Build IPA
         script: |
           set -e
-          APP="${APP_STORE_APPLE_ID:-$BUNDLE_ID}"
+          APP="${ASC_APP_ID:-$BUNDLE_ID}"
           MARKETING=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*([^+]+).*/\1/')
           FROM_PUBSPEC=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
           pick_num() {
