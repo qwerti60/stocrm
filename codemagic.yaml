@@ -84,8 +84,8 @@ workflows:
             --export-options-plist=/Users/builder/export_options.plist \
             --dart-define=API_BASE="$API_BASE"
           IPA=$(ls -1 build/ios/ipa/*.ipa | head -1)
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /dev/stdin <<< "$(unzip -p "$IPA" Payload/*.app/Info.plist | plutil -convert xml1 -o - -)" \
-            || echo "Could not read CFBundleVersion from IPA"
+          echo -n "IPA CFBundleVersion: "
+          unzip -p "$IPA" Payload/*.app/Info.plist 2>/dev/null | plutil -p - 2>/dev/null | grep CFBundleVersion || true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
