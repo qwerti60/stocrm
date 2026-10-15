@@ -128,7 +128,7 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 8),
             const Text('СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG', style: TextStyle(color: vagMuted, fontSize: 10, letterSpacing: 0.8, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
-            const Text('Вход и регистрация', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            const Text('Вход и регистрация', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: vagInk)),
             const SizedBox(height: 8),
             const Text(
               'Телефон ищем в STOCRM. Код подтверждения приходит на email. Если почты в карточке нет — её нужно указать, она сохранится вместе с номером.',

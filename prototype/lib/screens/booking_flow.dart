@@ -88,7 +88,7 @@ class _BookingFlowState extends State<BookingFlow> {
         await showDialog<void>(
           context: context,
           builder: (_) => AlertDialog(
-            backgroundColor: vagCard,
+            backgroundColor: vagSurface,
             title: const Text('Заявка принята'),
             content: Text(
               '${res?['message'] ?? 'Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения'}'
@@ -117,7 +117,7 @@ class _BookingFlowState extends State<BookingFlow> {
     await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: vagCard,
+        backgroundColor: vagSurface,
             title: const Text('Заявка принята'),
             content: const Text('Заявка на ремонт принята. В течении 15 минут мы Вам позвоним для подтверждения'),
         actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Понятно'))],
@@ -366,7 +366,7 @@ class _BookingFlowState extends State<BookingFlow> {
 
   Widget _choice({required bool selected, required String title, required String subtitle, required VoidCallback onTap}) {
     return Card(
-      color: selected ? const Color(0xFF3A0A10) : vagCard,
+      color: selected ? vagRed.withValues(alpha: 0.12) : vagCard,
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),

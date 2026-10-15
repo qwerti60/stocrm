@@ -153,6 +153,15 @@ python probe.py
 
 Сайт с того же процесса: `/` документы, `/app/` веб-клиент, `/apk/` сборки, `/health` API.
 
+Веб-клиент (деплой на VPS):
+
+```bash
+bash deploy/build-web.sh
+bash deploy/publish-web.sh
+```
+
+Открыть: http://45.81.33.7/app/ (BFF на том же хосте, OTP тестовый 1234).
+
 VPS: `dist/vagmarket-deploy.tar.gz` + `deploy/bootstrap.sh`. SID только в `.env` на сервере, не в архиве.
 
 ```bash

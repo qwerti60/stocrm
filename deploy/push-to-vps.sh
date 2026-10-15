@@ -40,6 +40,11 @@ with tarfile.open(archive, "w:gz") as tar:
         path = os.path.join(root, name)
         if os.path.exists(path):
             tar.add(path, arcname=name, filter=filt)
+    web = os.path.join(root, "prototype", "build", "web")
+    if os.path.isdir(web):
+        tar.add(web, arcname="prototype/build/web", filter=filt)
+    else:
+        print("skip web (run: cd prototype && flutter build web --base-href=/app/)", file=sys.stderr)
 print("wrote", archive)
 PY
 

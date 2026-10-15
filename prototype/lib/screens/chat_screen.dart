@@ -58,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: widget.store.chat.isEmpty
-                ? const Center(child: Text('Напишите менеджеру — ответ придёт сюда', style: TextStyle(color: vagMuted)))
+                ? const Center(child: Text('Напишите менеджеру — ответ придёт сюда', style: TextStyle(color: vagMutedInk)))
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: widget.store.chat.length,
@@ -72,7 +72,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           constraints: const BoxConstraints(maxWidth: 320),
                           decoration: BoxDecoration(
-                            color: staffMsg ? vagCard : vagRed,
+                            color: staffMsg ? const Color(0xFFEFEFF2) : vagRed,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
@@ -80,7 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             children: [
                               if (staffMsg)
                                 Text(m.staffName?.isNotEmpty == true ? m.staffName! : staff, style: const TextStyle(color: vagRed, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text(m.text, style: const TextStyle(color: Colors.white, height: 1.35)),
+                              Text(m.text, style: TextStyle(color: staffMsg ? vagInk : Colors.white, height: 1.35)),
                             ],
                           ),
                         ),

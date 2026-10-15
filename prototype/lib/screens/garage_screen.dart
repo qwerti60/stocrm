@@ -73,7 +73,7 @@ class _GarageScreenState extends State<GarageScreen> {
                     children: [
                       CircleAvatar(
                         radius: 26,
-                        backgroundColor: active ? vagRed : const Color(0xFF2A2A2E),
+                        backgroundColor: active ? vagRed : vagBorder,
                         child: const Icon(Icons.directions_car, color: Colors.white),
                       ),
                       const SizedBox(width: 12),

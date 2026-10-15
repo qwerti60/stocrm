@@ -48,7 +48,7 @@ workflows:
           fi
           echo "TestFlight latest=$LATEST pubspec=$FROM_PUBSPEC -> build-number=$BUILD_NUMBER"
           flutter build ipa --release --no-tree-shake-icons \
-            --build-name=1.0.3 \
+            --build-name=1.0.4 \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist \
             --dart-define=API_BASE="$API_BASE"
