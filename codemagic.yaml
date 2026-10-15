@@ -14,6 +14,8 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: ru.app72.stocrmMobileApp
+        # App Store Connect → App → General → Apple ID (число). Задайте в Codemagic, если lookup по bundle id врёт.
+        APP_STORE_APPLE_ID: ""
         API_BASE: http://45.81.33.7
     scripts:
       - name: Get Flutter packages
@@ -46,21 +48,44 @@ workflows:
       - name: Build IPA
         script: |
           set -e
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" || echo 0)
+          APP="${APP_STORE_APPLE_ID:-$BUNDLE_ID}"
+          MARKETING=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*([^+]+).*/\1/')
           FROM_PUBSPEC=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
-          BUILD_NUMBER=$((LATEST + 1))
-          if [ "$BUILD_NUMBER" -lt "$FROM_PUBSPEC" ]; then
-            BUILD_NUMBER=$FROM_PUBSPEC
+          pick_num() {
+            local line
+            line=$(echo "$1" | tail -1 | tr -d '[:space:]')
+            if echo "$line" | grep -Eq '^[0-9]+$'; then
+              echo "$line"
+            else
+              echo 0
+            fi
+          }
+          LATEST=0
+          set +e
+          ASC_BUILD=$(app-store-connect get-latest-build-number "$APP" --platform IOS --all-versions -s 2>/dev/null)
+          TF_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP" --all-versions --not-expired -s 2>/dev/null)
+          set -e
+          for N in "$(pick_num "$ASC_BUILD")" "$(pick_num "$TF_BUILD")"; do
+            if [ "$N" -gt "$LATEST" ] 2>/dev/null; then
+              LATEST=$N
+            fi
+          done
+          IOS_BUILD=$((LATEST + 1))
+          if [ "$FROM_PUBSPEC" -gt "$IOS_BUILD" ]; then
+            IOS_BUILD=$FROM_PUBSPEC
           fi
-          if [ "$BUILD_NUMBER" -lt 2 ]; then
-            BUILD_NUMBER=2
+          if [ -n "${PROJECT_BUILD_NUMBER:-}" ] && [ "$PROJECT_BUILD_NUMBER" -gt "$IOS_BUILD" ]; then
+            IOS_BUILD=$PROJECT_BUILD_NUMBER
           fi
-          echo "TestFlight latest=$LATEST pubspec=$FROM_PUBSPEC -> build-number=$BUILD_NUMBER"
+          echo "App=$APP asc=$(pick_num "$ASC_BUILD") tf=$(pick_num "$TF_BUILD") latest=$LATEST pubspec=$FROM_PUBSPEC cm=$PROJECT_BUILD_NUMBER -> ios-build=$IOS_BUILD"
           flutter build ipa --release --no-tree-shake-icons \
-            --build-name=1.0.4 \
-            --build-number="$BUILD_NUMBER" \
+            --build-name="$MARKETING" \
+            --build-number="$IOS_BUILD" \
             --export-options-plist=/Users/builder/export_options.plist \
             --dart-define=API_BASE="$API_BASE"
+          IPA=$(ls -1 build/ios/ipa/*.ipa | head -1)
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /dev/stdin <<< "$(unzip -p "$IPA" Payload/*.app/Info.plist | plutil -convert xml1 -o - -)" \
+            || echo "Could not read CFBundleVersion from IPA"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
