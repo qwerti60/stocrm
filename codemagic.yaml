@@ -18,6 +18,15 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
+      - name: Firebase GoogleService-Info.plist
+        script: |
+          PLIST="ios/Runner/GoogleService-Info.plist"
+          if [ -n "${GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$PLIST"
+            echo "Wrote $PLIST from Codemagic env"
+          elif [ ! -f "$PLIST" ]; then
+            echo "WARNING: $PLIST missing — iOS push and Settings → Notifications will not work until you add the file or GOOGLE_SERVICE_INFO_PLIST" >&2
+          fi
       - name: Install CocoaPods
         script: |
           cd ios

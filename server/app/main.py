@@ -29,6 +29,7 @@ from app.store import (
     add_vin,
     all_sessions,
     audience_by_phone,
+    delete_promo,
     delete_short,
     bonus_statement,
     drop_session,
@@ -44,6 +45,7 @@ from app.store import (
     list_garage_local,
     list_messages,
     list_promos,
+    list_promos_admin,
     list_shorts,
     list_shorts_admin,
     list_threads,
@@ -62,6 +64,7 @@ from app.store import (
     take_expiry_warnings,
     thread_key,
     touch_audience,
+    update_promo,
     update_short,
     upsert_identity,
 )
@@ -1365,6 +1368,21 @@ async def admin_campaigns_upload(
     )
 
 
+def _promo_admin_item(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    pid = str(out.get("id") or "")
+    out.setdefault("subtitle", out.get("body") or "")
+    if pid and promo_image_path(pid):
+        out["image_url"] = f"/v1/promos/{pid}/image"
+    return out
+
+
+@app.get("/admin/api/promos")
+def admin_promos_get(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    return {"items": [_promo_admin_item(x) for x in list_promos_admin()]}
+
+
 @app.post("/admin/api/promos")
 async def admin_promos_post(
     x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
@@ -1382,7 +1400,41 @@ async def admin_promos_post(
         if data:
             save_promo_image(row["id"], data, Path(image.filename).suffix)
             row["image"] = True
-    return {"ok": True, "item": row}
+    return {"ok": True, "item": _promo_admin_item(row)}
+
+
+@app.put("/admin/api/promos/{pid}")
+async def admin_promos_put(
+    pid: str,
+    x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
+    title: str = Form(...),
+    body: str = Form(""),
+    badge: str = Form("Акция"),
+    image: UploadFile | None = File(default=None),
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    if not title.strip():
+        raise HTTPException(400, "Нужен заголовок")
+    try:
+        row = update_promo(pid, title=title, body=body, badge=badge)
+    except KeyError:
+        raise HTTPException(404, "Спецпредложение не найдено") from None
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    if image and image.filename:
+        data = await image.read()
+        if data:
+            save_promo_image(pid, data, Path(image.filename).suffix)
+            row["image"] = True
+    return {"ok": True, "item": _promo_admin_item(row)}
+
+
+@app.delete("/admin/api/promos/{pid}")
+def admin_promos_delete(pid: str, x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    if not delete_promo(pid):
+        raise HTTPException(404, "Спецпредложение не найдено")
+    return {"ok": True, "id": pid}
 
 
 @app.get("/admin/api/tickets")

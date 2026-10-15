@@ -23,6 +23,7 @@ _EMPTY: dict[str, Any] = {
     "campaigns": [],
     "shorts": [],
     "hidden_shorts": [],
+    "hidden_promos": [],
     "audience": {},
     "identities": {},
     "hidden_cars": {},
@@ -840,11 +841,114 @@ def list_campaigns() -> list[dict[str, Any]]:
         return list(_load().get("campaigns") or [])
 
 
+def _promo_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
+    return [c for c in data.get("campaigns") or [] if c.get("pinned") and c.get("kind") != "push"]
+
+
 def list_promos() -> list[dict[str, Any]]:
-    own = [c for c in list_campaigns() if c.get("pinned") and c.get("kind") != "push"]
-    if own:
-        return own
-    return list(DEFAULT_PROMOS)
+    with _LOCK:
+        data = _load()
+        own = list(_promo_rows(data))
+        hidden = {str(x) for x in (data.get("hidden_promos") or [])}
+    own_ids = {str(x.get("id")) for x in own if x.get("id")}
+    for d in DEFAULT_PROMOS:
+        if d["id"] in hidden or d["id"] in own_ids:
+            continue
+        own.append(dict(d))
+    return own
+
+
+def list_promos_admin() -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    with _LOCK:
+        data = _load()
+        own = list(_promo_rows(data))
+        hidden = {str(x) for x in (data.get("hidden_promos") or [])}
+    own_ids = {str(x.get("id")) for x in own if x.get("id")}
+    for row in own:
+        items.append({**row, "builtin": False})
+    for d in DEFAULT_PROMOS:
+        if d["id"] in own_ids or d["id"] in hidden:
+            continue
+        items.append({**d, "builtin": True})
+    return items
+
+
+def update_promo(
+    pid: str,
+    *,
+    title: str,
+    body: str = "",
+    badge: str = "Акция",
+) -> dict[str, Any]:
+    pid = (pid or "").strip()
+    if not pid:
+        raise KeyError("id")
+    title = title.strip()
+    if not title:
+        raise ValueError("title")
+    subtitle = body.strip()
+    badge = (badge or "Акция").strip() or "Акция"
+    with _LOCK:
+        data = _load()
+        rows: list[dict[str, Any]] = data.setdefault("campaigns", [])
+        for row in rows:
+            if str(row.get("id")) == pid and row.get("pinned") and row.get("kind") != "push":
+                row["title"] = title
+                row["body"] = subtitle or title
+                row["subtitle"] = subtitle
+                row["badge"] = badge
+                row["updated"] = int(time.time())
+                _save(data)
+                return dict(row)
+        builtin = next((dict(d) for d in DEFAULT_PROMOS if d["id"] == pid), None)
+        if not builtin:
+            raise KeyError(pid)
+        fork = {
+            **builtin,
+            "title": title,
+            "body": subtitle or title,
+            "subtitle": subtitle,
+            "badge": badge,
+            "pinned": True,
+            "kind": "promo",
+            "updated": int(time.time()),
+            "created": int(time.time()),
+        }
+        hidden = data.setdefault("hidden_promos", [])
+        if pid in hidden:
+            hidden.remove(pid)
+        rows.insert(0, fork)
+        _save(data)
+        return fork
+
+
+def delete_promo_image(cid: str) -> None:
+    path = promo_image_path(cid)
+    if path and path.is_file():
+        path.unlink(missing_ok=True)
+
+
+def delete_promo(pid: str) -> bool:
+    pid = (pid or "").strip()
+    if not pid:
+        return False
+    with _LOCK:
+        data = _load()
+        rows: list[dict[str, Any]] = data.setdefault("campaigns", [])
+        kept = [r for r in rows if not (str(r.get("id")) == pid and r.get("pinned") and r.get("kind") != "push")]
+        removed = len(kept) != len(rows)
+        data["campaigns"] = kept
+        if any(d["id"] == pid for d in DEFAULT_PROMOS):
+            hidden = data.setdefault("hidden_promos", [])
+            if pid not in hidden:
+                hidden.append(pid)
+            removed = True
+        if not removed:
+            return False
+        _save(data)
+    delete_promo_image(pid)
+    return True
 
 
 def add_short(*, title: str, subtitle: str = "", url: str = "", poster: str = "") -> dict[str, Any]:

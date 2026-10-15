@@ -125,8 +125,9 @@
     <div class="pane" id="pane-promos">
       <div class="grid2">
         <div>
-          <h2>Карточка на главной</h2>
+          <h2 id="pFormTitle">Новая карточка</h2>
           <p class="muted">Мини-картинка как в блоке спецпредложений. Рассылка сюда не пишется.</p>
+          <input type="hidden" id="pId" />
           <label>Заголовок</label>
           <input id="pTitle" style="width:100%" placeholder="Замена масла" />
           <label>Подзаголовок / цена</label>
@@ -136,7 +137,8 @@
           <label>Картинка</label>
           <input id="pImage" type="file" accept="image/*" style="width:100%" />
           <form onsubmit="savePromo(event)" style="margin-top:.8rem">
-            <button>Закрепить на главной</button>
+            <button id="pSaveBtn">Добавить на главную</button>
+            <button type="button" class="ghost" id="pCancelBtn" hidden onclick="resetPromoForm()">Отмена</button>
           </form>
           <p class="muted" id="pMsg"></p>
         </div>
@@ -358,14 +360,49 @@
       }
     }
     async function loadPromos() {
-      const c = await api("/admin/api/campaigns");
-      document.getElementById("promoList").innerHTML = (c.promos || []).map(x =>
-        `<div class="camp"><b>${esc(x.title)}</b><div class="muted">${esc(x.subtitle || x.body || "")}</div></div>`
-      ).join("") || '<p class="muted">Пока шаблонные карточки</p>';
+      const d = await api("/admin/api/promos");
+      document.getElementById("promoList").innerHTML = (d.items || []).map(x => {
+        const thumb = x.image_url
+          ? `<img src="${esc(x.image_url)}" alt="" style="max-width:120px;max-height:80px;border-radius:8px;margin:.35rem 0" />`
+          : "";
+        return `<div class="camp">
+          ${thumb}
+          <b>${esc(x.title)}</b> <span class="muted">${esc(x.badge || "")}</span>
+          <div class="muted">${esc(x.subtitle || x.body || "")}${x.builtin ? " · шаблон" : ""}</div>
+          <div class="row-btns">
+            <button type="button" class="ghost" onclick='editPromo(${JSON.stringify(x)})'>Изменить</button>
+            <button type="button" class="danger" onclick="removePromo(${JSON.stringify(String(x.id || ''))})">Удалить</button>
+          </div>
+        </div>`;
+      }).join("") || '<p class="muted">На главной нет карточек — добавьте или верните шаблоны</p>';
+    }
+    function resetPromoForm() {
+      document.getElementById("pId").value = "";
+      document.getElementById("pTitle").value = "";
+      document.getElementById("pBody").value = "";
+      document.getElementById("pBadge").value = "Акция";
+      document.getElementById("pImage").value = "";
+      document.getElementById("pFormTitle").textContent = "Новая карточка";
+      document.getElementById("pSaveBtn").textContent = "Добавить на главную";
+      document.getElementById("pCancelBtn").hidden = true;
+      document.getElementById("pMsg").textContent = "";
+    }
+    function editPromo(x) {
+      document.getElementById("pId").value = x.id || "";
+      document.getElementById("pTitle").value = x.title || "";
+      document.getElementById("pBody").value = x.subtitle || x.body || "";
+      document.getElementById("pBadge").value = x.badge || "Акция";
+      document.getElementById("pImage").value = "";
+      document.getElementById("pFormTitle").textContent = "Редактировать карточку";
+      document.getElementById("pSaveBtn").textContent = "Сохранить";
+      document.getElementById("pCancelBtn").hidden = false;
+      document.getElementById("pMsg").textContent = "";
+      document.getElementById("pTitle").focus();
     }
     async function savePromo(e) {
       e.preventDefault();
       const msg = document.getElementById("pMsg");
+      const id = document.getElementById("pId").value.trim();
       msg.textContent = "Сохранение…";
       try {
         const fd = new FormData();
@@ -374,18 +411,26 @@
         fd.append("badge", document.getElementById("pBadge").value);
         const img = document.getElementById("pImage").files[0];
         if (img) fd.append("image", img);
-        const r = await fetch("/admin/api/promos", {
-          method: "POST",
+        const url = id ? "/admin/api/promos/" + encodeURIComponent(id) : "/admin/api/promos";
+        const r = await fetch(url, {
+          method: id ? "PUT" : "POST",
           headers: { "X-BFF-Secret": S.key },
           body: fd,
         });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.detail || r.status);
-        msg.innerHTML = '<span class="ok">Карточка на главной</span>';
+        msg.innerHTML = id ? '<span class="ok">Сохранено</span>' : '<span class="ok">Добавлено на главную</span>';
+        resetPromoForm();
         await loadPromos();
       } catch (err) {
         msg.textContent = err.message || "Ошибка";
       }
+    }
+    async function removePromo(id) {
+      if (!id || !confirm("Убрать эту карточку с главной?")) return;
+      await api("/admin/api/promos/" + encodeURIComponent(id), { method: "DELETE" });
+      if (document.getElementById("pId").value === id) resetPromoForm();
+      await loadPromos();
     }
     async function loadShorts() {
       const d = await api("/admin/api/shorts");
