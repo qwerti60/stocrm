@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stocrm_mobile_app/app_badge.dart';
+import 'package:stocrm_mobile_app/local_push.dart';
 import 'package:stocrm_mobile_app/data/api.dart';
 
 class Vehicle {
@@ -598,7 +599,10 @@ class MockStore extends ChangeNotifier {
     if (_pushListenersStarted || kIsWeb) return;
     if (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS) return;
     _pushListenersStarted = true;
-    FirebaseMessaging.onMessage.listen((_) {
+    FirebaseMessaging.onMessage.listen((msg) {
+      final title = msg.notification?.title ?? msg.data['title']?.toString() ?? 'VAG Market';
+      final body = msg.notification?.body ?? msg.data['body']?.toString() ?? '';
+      showBannerPush(id: msg.hashCode, title: title, body: body);
       pollNow();
     });
     FirebaseMessaging.onMessageOpenedApp.listen((_) {

@@ -17,6 +17,7 @@ import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/vin_screen.dart';
 import 'package:stocrm_mobile_app/app_badge.dart';
+import 'package:stocrm_mobile_app/local_push.dart';
 import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
@@ -51,6 +52,7 @@ Future<void> main() async {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
     await ensureIosNotificationRegistration();
   }
+  await initLocalPush();
   if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
     try {
       await Firebase.initializeApp();

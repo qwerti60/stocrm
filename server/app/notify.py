@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
 from typing import Any
 
 import httpx
+
+_log = logging.getLogger("vagmarket.fcm")
 
 from app.config import settings
 from app.store import count_unread_inbox, fcm_contact_ids, fcm_tokens, register_fcm_token
@@ -124,7 +127,7 @@ def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> 
     if badge is not None and badge >= 0:
         aps["badge"] = int(badge)
     try:
-        httpx.post(
+        r = httpx.post(
             f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
             headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
             json={
@@ -142,14 +145,21 @@ def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> 
                         "notification": {"sound": "default", "channel_id": "vagmarket"},
                     },
                     "apns": {
-                        "headers": {"apns-priority": "10", "apns-push-type": "alert"},
+                        "headers": {
+                            "apns-priority": "10",
+                            "apns-push-type": "alert",
+                        },
                         "payload": {"aps": aps},
+                        "fcm_options": {"analytics_label": "vagmarket_ios"},
                     },
                 }
             },
             timeout=12.0,
         )
-    except Exception:
+        if r.status_code >= 300:
+            _log.warning("FCM %s token=%s… body=%s", r.status_code, token[:12], (r.text or "")[:500])
+    except Exception as exc:
+        _log.warning("FCM send failed token=%s… %s", token[:12], exc)
         return
 
 
