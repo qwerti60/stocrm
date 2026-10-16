@@ -103,11 +103,44 @@ workflows:
           IPA=$(ls -1 build/ios/ipa/*.ipa | head -1)
           echo -n "IPA CFBundleVersion: "
           unzip -p "$IPA" Payload/*.app/Info.plist 2>/dev/null | plutil -p - 2>/dev/null | grep CFBundleVersion || true
+      - name: Publish to TestFlight (retries)
+        script: |
+          set +e
+          IPA=$(ls -1 build/ios/ipa/*.ipa | head -1)
+          if [ ! -f "$IPA" ]; then
+            echo "IPA not found" >&2
+            exit 1
+          fi
+          code=1
+          for attempt in 1 2 3 4 5 6 7 8; do
+            echo "TestFlight publish attempt $attempt/8…"
+            EXTRA=()
+            if [ "$attempt" -gt 1 ]; then
+              EXTRA+=(--skip-package-upload)
+            fi
+            app-store-connect publish \
+              --path "$IPA" \
+              --testflight \
+              --api-server-error-retries 10 \
+              --altool-retries 5 \
+              --altool-retry-wait 60 \
+              "${EXTRA[@]}"
+            code=$?
+            if [ "$code" -eq 0 ]; then
+              echo "TestFlight publish OK"
+              break
+            fi
+            echo "Publish failed ($code), wait 90s (Apple API 500 is common after upload)…"
+            sleep 90
+          done
+          set -e
+          exit "$code"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Upload + TestFlight — в шаге «Publish to TestFlight (retries)» (повторы при ASC API 500).
+        submit_to_testflight: false
         submit_to_app_store: false

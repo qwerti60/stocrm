@@ -13,6 +13,16 @@
    - Загрузить `.mobileprovision` и сертификат в группу **`ios_signing`** в Codemagic (ручная подпись).
 4. Статус Apple: [developer.apple.com/system-status](https://developer.apple.com/system-status/).
 
+## Upload OK, publish failed: `APP STORE CONNECT API: status code 500`
+
+Сообщение `No errors uploading archive` + затем **500 internal server error** — IPA уже **залит в Apple**, упал следующий вызов API (TestFlight / привязка билда).
+
+**Что делать:**
+
+1. **Перезапустить сборку** — в `codemagic.yaml` шаг **Publish to TestFlight (retries)** делает до 8 попыток; со 2-й использует `--skip-package-upload` (не грузит IPA заново).
+2. Проверить [App Store Connect → TestFlight](https://appstoreconnect.apple.com/) — билд может уже **Processing** / **Ready to test** несмотря на красный Codemagic.
+3. Если билд есть в ASC — в Codemagic достаточно **Re-run** только failed step или полной сборки (skip-upload сработает на retry).
+
 ## Team ID
 
 Distribution-сертификат в Codemagic: **Denis Sumarokov (`C7D47SWZAU`)**.  
