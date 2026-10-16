@@ -16,7 +16,7 @@ Android уже регистрирует FCM-токен при входе. Для
 | Поле | Значение |
 |------|----------|
 | **Key ID** | `Z53M239SM5` |
-| **Team ID** | `9D79UST58L` (как в Xcode / Codemagic) |
+| **Team ID** | `C7D47SWZAU` (Apple Distribution: Denis Sumarokov — как в Codemagic) |
 
 Локальная копия (не в git): `server/secrets/AuthKey_Z53M239SM5.p8`. Исходник храните только у себя; в репозиторий **не коммитить**.
 
@@ -25,7 +25,7 @@ Android уже регистрирует FCM-токен при входе. Для
 1. [Firebase Console](https://console.firebase.google.com/project/stocrm-edf31/settings/cloudmessaging) → **Project settings** → вкладка **Cloud Messaging**.
 2. Блок **Apple app configuration** → приложение **ru.app72.stocrmMobileApp**.
 3. **Upload** → файл `AuthKey_Z53M239SM5.p8`.
-4. **Key ID:** `Z53M239SM5` · **Team ID:** `9D79UST58L` → **Upload**.
+4. **Key ID:** `Z53M239SM5` · **Team ID:** `C7D47SWZAU` → **Upload** (не путать с другим Team ID в Xcode).
 
 Без этого шага FCM принимает запросы с BFF, но **Apple не доставит** push на iPhone.
 

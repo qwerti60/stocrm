@@ -36,10 +36,28 @@ workflows:
         script: keychain initialize
       - name: Fetch or create App Store signing files
         script: |
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create \
-            --certificate-key="@env:CERTIFICATE_PRIVATE_KEY"
+          set +e
+          code=1
+          for attempt in 1 2 3 4 5 6; do
+            echo "fetch-signing-files attempt $attempt/6 (Apple API sometimes returns 500)…"
+            app-store-connect fetch-signing-files "$BUNDLE_ID" \
+              --type IOS_APP_STORE \
+              --create \
+              --strict-match-identifier \
+              --delete-stale-profiles \
+              --api-server-error-retries 8 \
+              --certificate-key="@env:CERTIFICATE_PRIVATE_KEY"
+            code=$?
+            if [ "$code" -eq 0 ]; then
+              break
+            fi
+            sleep 45
+          done
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo "fetch-signing-files failed after retries. Often Apple's GET …/profiles 500 — rerun build in 30–60 min or create App Store profile manually in Developer portal." >&2
+            exit "$code"
+          fi
       - name: Add certificates to keychain
         script: keychain add-certificates
       - name: Set up code signing
