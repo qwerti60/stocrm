@@ -16,12 +16,20 @@ import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/vin_screen.dart';
+import 'package:stocrm_mobile_app/app_badge.dart';
 import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseBackground(RemoteMessage message) async {
   await Firebase.initializeApp();
+  final raw = message.data['badge'];
+  if (raw != null) {
+    final n = int.tryParse('$raw');
+    if (n != null) {
+      await syncAppIconBadge(n);
+    }
+  }
 }
 
 Future<void> _setupPushPermissions() async {

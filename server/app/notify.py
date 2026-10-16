@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
-from app.store import fcm_contact_ids, fcm_tokens, register_fcm_token
+from app.store import count_unread_inbox, fcm_contact_ids, fcm_tokens, register_fcm_token
 
 _lock = threading.Lock()
 last_status: dict[tuple[int, int], int] = {}
@@ -38,9 +38,10 @@ def add_note(contact_id: int, title: str, body: str, offer_id: Any = None, kind:
     from app.store import save_inbox_note
 
     save_inbox_note(int(contact_id), note)
+    badge = count_unread_inbox(int(contact_id))
     tokens = fcm_tokens(int(contact_id))
     for tok in tokens:
-        send_fcm(tok, title, body)
+        send_fcm(tok, title, body, badge=badge)
     return note
 
 
@@ -110,12 +111,18 @@ def poll_once(stocrm: Any, contact_ids: list[int]) -> int:
     return created
 
 
-def send_fcm(token: str, title: str, body: str) -> None:
+def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> None:
     if not token:
         return
     access, project_id = _fcm_access()
     if not access or not project_id:
         return
+    aps: dict[str, Any] = {
+        "alert": {"title": title, "body": body},
+        "sound": "default",
+    }
+    if badge is not None and badge >= 0:
+        aps["badge"] = int(badge)
     try:
         httpx.post(
             f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
@@ -124,10 +131,19 @@ def send_fcm(token: str, title: str, body: str) -> None:
                 "message": {
                     "token": token,
                     "notification": {"title": title, "body": body},
-                    "data": {"type": "ready"},
+                    "data": {
+                        "type": "ready",
+                        "title": title,
+                        "body": body,
+                        "badge": str(int(badge)) if badge is not None else "",
+                    },
                     "android": {
                         "priority": "HIGH",
                         "notification": {"sound": "default", "channel_id": "vagmarket"},
+                    },
+                    "apns": {
+                        "headers": {"apns-priority": "10", "apns-push-type": "alert"},
+                        "payload": {"aps": aps},
                     },
                 }
             },

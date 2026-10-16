@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stocrm_mobile_app/app_badge.dart';
 import 'package:stocrm_mobile_app/data/api.dart';
 
 class Vehicle {
@@ -246,6 +247,15 @@ class MockStore extends ChangeNotifier {
   Timer? _poller;
   List<AppNote> notes = [];
   String? pendingReadyAlert;
+  bool _pushListenersStarted = false;
+
+  int get appBadgeCount => unreadNotes.length + unreadChat;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    unawaited(syncAppIconBadge(appBadgeCount));
+  }
 
   final branches = [
     Branch(
@@ -565,6 +575,13 @@ class MockStore extends ChangeNotifier {
     try {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        for (var i = 0; i < 8; i++) {
+          final apns = await messaging.getAPNSToken();
+          if (apns != null && apns.isNotEmpty) break;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        }
+      }
       final token = await messaging.getToken();
       if (token != null && token.isNotEmpty) {
         await api.post('/v1/devices', {'fcm_token': token});
@@ -573,7 +590,21 @@ class MockStore extends ChangeNotifier {
         if (api.token == null || next.isEmpty) return;
         api.post('/v1/devices', {'fcm_token': next});
       });
+      startPushListeners();
     } catch (_) {}
+  }
+
+  void startPushListeners() {
+    if (_pushListenersStarted || kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS) return;
+    _pushListenersStarted = true;
+    FirebaseMessaging.onMessage.listen((_) {
+      pollNow();
+    });
+    FirebaseMessaging.onMessageOpenedApp.listen((_) {
+      pendingScreen = 'chat';
+      pollNow();
+    });
   }
 
   void startPolling() {

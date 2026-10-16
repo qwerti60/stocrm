@@ -308,6 +308,10 @@ def load_inbox(contact_id: int) -> list[dict[str, Any]]:
         return list((_load().get("inbox") or {}).get(key) or [])
 
 
+def count_unread_inbox(contact_id: int) -> int:
+    return sum(1 for n in load_inbox(int(contact_id)) if not n.get("read"))
+
+
 def mark_inbox_read(contact_id: int, note_id: str) -> None:
     key = str(int(contact_id))
     with _LOCK:
