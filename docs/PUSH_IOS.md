@@ -11,13 +11,23 @@ Android уже регистрирует FCM-токен при входе. Для
 
 ## 2. Apple — ключ APNs
 
-1. [Apple Developer](https://developer.apple.com/account/resources/authkeys/list) → **Keys** → создать ключ с **Apple Push Notifications service (APNs)**.
-2. Скачать `.p8`, запомнить **Key ID** и **Team ID**.
+Ключ уже создан: **`AuthKey_Z53M239SM5.p8`**
 
-## 3. Firebase — загрузка APNs
+| Поле | Значение |
+|------|----------|
+| **Key ID** | `Z53M239SM5` |
+| **Team ID** | `9D79UST58L` (как в Xcode / Codemagic) |
 
-1. Firebase → Project settings → **Cloud Messaging** → **Apple app configuration**.
-2. Загрузить `.p8`, указать Key ID и Team ID.
+Локальная копия (не в git): `server/secrets/AuthKey_Z53M239SM5.p8`. Исходник храните только у себя; в репозиторий **не коммитить**.
+
+## 3. Firebase — загрузка APNs (обязательно для push в шторку)
+
+1. [Firebase Console](https://console.firebase.google.com/project/stocrm-edf31/settings/cloudmessaging) → **Project settings** → вкладка **Cloud Messaging**.
+2. Блок **Apple app configuration** → приложение **ru.app72.stocrmMobileApp**.
+3. **Upload** → файл `AuthKey_Z53M239SM5.p8`.
+4. **Key ID:** `Z53M239SM5` · **Team ID:** `9D79UST58L` → **Upload**.
+
+Без этого шага FCM принимает запросы с BFF, но **Apple не доставит** push на iPhone.
 
 ## 4. Xcode / Codemagic
 

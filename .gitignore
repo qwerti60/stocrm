@@ -11,5 +11,7 @@ dist/DRIVE-STO*.apk
 .tools/
 server/data/
 server/secrets/
+*.p8
+AuthKey_*.p8
 server/.vps-pass
 *.vps-pass
