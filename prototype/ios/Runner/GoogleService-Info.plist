@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyBUDD_Y4-FVMSlIfTK5CrIUMc2vAjDdt84</string>
+	<key>GCM_SENDER_ID</key>
+	<string>162040307823</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>ru.app72.stocrmMobileApp</string>
+	<key>PROJECT_ID</key>
+	<string>stocrm-edf31</string>
+	<key>STORAGE_BUCKET</key>
+	<string>stocrm-edf31.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:162040307823:ios:4d66a8b27d814b5f856d9a</string>
+</dict>
+</plist>

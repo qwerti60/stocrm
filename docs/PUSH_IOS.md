@@ -32,9 +32,9 @@ Android уже регистрирует FCM-токен при входе. Для
 
 ## 6. Codemagic — GoogleService-Info.plist
 
-Файл **не хранится в git**. Перед сборкой положите его в `prototype/ios/Runner/` или добавьте в Codemagic переменную `GOOGLE_SERVICE_INFO_PLIST` (base64 содержимого plist) — шаг в `codemagic.yaml` декодирует файл.
+Файл лежит в репозитории: `prototype/ios/Runner/GoogleService-Info.plist` (проект `stocrm-edf31`, bundle `ru.app72.stocrmMobileApp`). Шаг в `codemagic.yaml` по-прежнему может перезаписать plist из `GOOGLE_SERVICE_INFO_PLIST`, если задан.
 
-Без plist Firebase на iOS не инициализируется: работают только **уведомления внутри приложения** (inbox, poller), а в **Настройки → VAG Market** не появится пункт «Уведомления».
+Без plist Firebase на iOS не инициализируется — системные push и FCM-токен не работают.
 
 ## 7. Проверка
 
