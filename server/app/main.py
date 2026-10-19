@@ -40,6 +40,12 @@ from app.store import (
     drop_garage_car,
     identity_by_email,
     is_bonus_offer,
+    is_service_book_offer,
+    add_popular_service,
+    delete_popular_service,
+    list_popular_services,
+    list_popular_services_admin,
+    update_popular_service,
     list_audience,
     list_campaigns,
     list_garage_local,
@@ -207,6 +213,13 @@ def _car_visible(c: dict[str, Any], hidden: set[int]) -> bool:
     return True
 
 
+def _offer_car(o: dict[str, Any]) -> tuple[int | None, str, str]:
+    car_id = int(o.get("CAR_PROFILE_ID") or o.get("CAR_ID") or 0) or None
+    plate = str(o.get("LICENSE_PLATE") or o.get("CAR_NUMBER_FLAT") or "").strip()
+    label = str(o.get("CAR_TITLE") or "").strip() or plate or "—"
+    return car_id, plate, label
+
+
 def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[str] | None = None) -> dict[str, Any]:
     status_id = int(o.get("OFFER_STATUS_ID") or 0)
     title = str(o.get("STATUS_NAME") or "")
@@ -215,6 +228,8 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[st
     is_ready = stage == "ready" or status_id in (6, 17953, 6845)
     is_history = stage in ("closed", "done") or (stage == "ready" and status_id != 17953)
     successful = is_bonus_offer(status_id, title)
+    service_book = is_service_book_offer(status_id, title)
+    car_id, car_plate, car_label = _offer_car(o)
     return {
         "id": o.get("OFFER_ID"),
         "status": title,
@@ -224,10 +239,13 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[st
         "is_ready": is_ready,
         "is_history": is_history,
         "successful": successful,
+        "service_book": service_book,
         "board": o.get("BOARD_NAME"),
         "sum": o.get("OFFER_SUM"),
         "works_sum": o.get("WORKS_SUM"),
-        "car": o.get("CAR_TITLE"),
+        "car": car_label,
+        "car_id": car_id,
+        "car_plate": car_plate,
         "branch": o.get("OFFER_CUSTOMER_NAME"),
         "branch_id": o.get("CUSTOMER_ID"),
         "created": o.get("OFFER_DATE_CREATE_FRONTEND_TIMESTAMP"),
@@ -357,6 +375,14 @@ class ShortIn(BaseModel):
     subtitle: str = ""
     url: str = ""
     poster: str = ""
+
+
+class PopularServiceIn(BaseModel):
+    title: str
+    price: str = ""
+    description: str = ""
+    image: str = ""
+    sort: int = 0
 
 
 class SmtpIn(BaseModel):
@@ -992,6 +1018,11 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
     return {"items": items, "empty": not items}
 
 
+@app.get("/v1/popular-services")
+def popular_services_get() -> dict[str, Any]:
+    return {"items": list_popular_services()}
+
+
 @app.get("/v1/promos")
 def promos_get() -> dict[str, Any]:
     items = []
@@ -1025,8 +1056,8 @@ def visit_pdf(oid: int, authorization: str | None = Header(default=None)):
     works_map = stocrm.works_index([oid])
     parts_map = stocrm.materials_index([oid])
     mapped = _offer_out(found, works_map.get(oid, []), parts_map.get(oid, []))
-    if not mapped.get("successful"):
-        raise HTTPException(400, "PDF доступен только по успешно реализованным сделкам")
+    if not mapped.get("service_book"):
+        raise HTTPException(400, "PDF доступен только по закрытым успешным сделкам")
     works = works_map.get(oid, [])
     when = mapped.get("calendar_from") or mapped.get("created") or ""
     pdf = work_order_pdf(
@@ -1504,6 +1535,62 @@ def admin_shorts_delete(sid: str, x_bff_secret: str | None = Header(default=None
     require_admin(x_bff_secret)
     if not delete_short(sid):
         raise HTTPException(404, "Ролик не найден")
+    return {"ok": True, "id": sid}
+
+
+@app.get("/admin/api/popular-services")
+def admin_popular_services_get(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    return {"items": list_popular_services_admin()}
+
+
+@app.post("/admin/api/popular-services")
+def admin_popular_services_post(
+    body: PopularServiceIn, x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "Нужен заголовок услуги")
+    row = add_popular_service(
+        title=title,
+        price=body.price,
+        description=body.description,
+        image=body.image,
+        sort=body.sort,
+    )
+    return {"ok": True, "item": row}
+
+
+@app.put("/admin/api/popular-services/{sid}")
+def admin_popular_services_put(
+    sid: str, body: PopularServiceIn, x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")
+) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "Нужен заголовок услуги")
+    try:
+        row = update_popular_service(
+            sid,
+            title=title,
+            price=body.price,
+            description=body.description,
+            image=body.image,
+            sort=body.sort,
+        )
+    except KeyError:
+        raise HTTPException(404, "Услуга не найдена") from None
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "item": row}
+
+
+@app.delete("/admin/api/popular-services/{sid}")
+def admin_popular_services_delete(sid: str, x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    require_admin(x_bff_secret)
+    if not delete_popular_service(sid):
+        raise HTTPException(404, "Услуга не найдена")
     return {"ok": True, "id": sid}
 
 

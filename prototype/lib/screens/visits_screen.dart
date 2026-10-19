@@ -13,6 +13,26 @@ class VisitsScreen extends StatefulWidget {
 
 class _VisitsScreenState extends State<VisitsScreen> {
   String q = '';
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStore);
+    widget.store.refreshVisits().whenComplete(() {
+      if (mounted) setState(() => loading = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onStore);
+    super.dispose();
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
 
   bool _match(Visit v) {
     if (q.isEmpty) return true;
@@ -29,8 +49,12 @@ class _VisitsScreenState extends State<VisitsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          const Text('Только успешно реализованные заказ-наряды. Можно скачать PDF.', style: TextStyle(color: vagMuted)),
+          const Text(
+            'Успешно реализованные и закрытые заказ-наряды (выполнен / готов). Можно открыть сделку и скачать PDF.',
+            style: TextStyle(color: vagMuted),
+          ),
           const SizedBox(height: 12),
+          if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: vagRed, strokeWidth: 2))),
           TextField(
             decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск по работам и запчастям'),
             onChanged: (v) => setState(() => q = v),

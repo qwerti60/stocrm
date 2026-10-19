@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/screens/chat_screen.dart';
+import 'package:stocrm_mobile_app/screens/popular_service_screen.dart';
 import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/search_sheet.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
@@ -35,7 +36,18 @@ class _HomeScreenState extends State<HomeScreen> {
   int _heroPage = 0;
 
   @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStore);
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    widget.store.removeListener(_onStore);
     _hero.dispose();
     super.dispose();
   }
@@ -194,30 +206,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _PopularServiceRow(
-                    image: 'assets/offer-oil.png',
-                    icon: Icons.opacity,
-                    title: 'Замена масла',
-                    price: 'от 5 990 ₽',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store, initialService: store.services.firstWhere((s) => s.title.contains('масл'), orElse: () => store.services[2])))),
-                  ),
-                  const SizedBox(height: 8),
-                  _PopularServiceRow(
-                    image: 'assets/offer-brakes.png',
-                    icon: Icons.speed,
-                    title: 'Диагностика',
-                    price: 'БЕСПЛАТНО при записи',
-                    priceRed: true,
-                    onTap: widget.onOpenBook,
-                  ),
-                  const SizedBox(height: 8),
-                  _PopularServiceRow(
-                    image: 'assets/offer-timing.png',
-                    icon: Icons.ac_unit,
-                    title: 'Заправка кондиционера',
-                    price: 'от 2 990 ₽',
-                    onTap: widget.onOpenBook,
-                  ),
+                  ...store.popularServices.asMap().entries.map((e) {
+                    final s = e.value;
+                    final priceRed = s.price.toLowerCase().contains('бесплат');
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: e.key < store.popularServices.length - 1 ? 8 : 0),
+                      child: _PopularServiceRow(
+                        image: s.image.isNotEmpty ? s.image : 'assets/offer-oil.png',
+                        icon: _popularServiceIcon(s),
+                        title: s.title,
+                        price: s.price,
+                        priceRed: priceRed,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => PopularServiceScreen(store: store, service: s)),
+                        ),
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 16),
                   _DiagPromoBanner(onTap: widget.onOpenBook),
                   const SizedBox(height: 18),
@@ -534,6 +539,22 @@ class _QuickTile extends StatelessWidget {
   }
 }
 
+IconData _popularServiceIcon(PopularService s) {
+  switch (s.id) {
+    case 'oil':
+      return Icons.opacity;
+    case 'diag':
+      return Icons.speed;
+    case 'ac':
+      return Icons.ac_unit;
+  }
+  final t = s.title.toLowerCase();
+  if (t.contains('масл')) return Icons.opacity;
+  if (t.contains('диагност')) return Icons.speed;
+  if (t.contains('кондицион') || t.contains('климат')) return Icons.ac_unit;
+  return Icons.build_outlined;
+}
+
 class _PopularServiceRow extends StatelessWidget {
   const _PopularServiceRow({
     required this.image,
@@ -566,7 +587,18 @@ class _PopularServiceRow extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.asset(image, width: 72, height: 56, fit: BoxFit.cover),
+                child: Image.asset(
+                  image,
+                  width: 72,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 72,
+                    height: 56,
+                    color: vagBorder,
+                    child: Icon(icon, color: vagRed),
+                  ),
+                ),
               ),
               const SizedBox(width: 10),
               Icon(icon, color: vagRed, size: 22),

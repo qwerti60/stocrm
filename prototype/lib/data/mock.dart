@@ -122,6 +122,8 @@ class Visit {
     this.isReady = false,
     this.isHistory = false,
     this.successful = false,
+    this.serviceBook = false,
+    this.carProfileId,
     this.steps = const [],
   });
 
@@ -129,6 +131,7 @@ class Visit {
   final String serviceTitle;
   final String branchName;
   final String carPlate;
+  final int? carProfileId;
   final DateTime when;
   String status;
   final int? amount;
@@ -140,7 +143,24 @@ class Visit {
   final bool isReady;
   bool isHistory;
   final bool successful;
+  final bool serviceBook;
   final List<RepairStep> steps;
+}
+
+class PopularService {
+  PopularService({
+    required this.id,
+    required this.title,
+    required this.price,
+    required this.description,
+    this.image = '',
+  });
+
+  final String id;
+  final String title;
+  final String price;
+  final String description;
+  final String image;
 }
 
 class BonusEvent {
@@ -404,7 +424,38 @@ class MockStore extends ChangeNotifier {
 
   List<Visit> get upcoming => visits.where((v) => !v.isHistory && v.status != 'отменена').toList();
 
-  List<Visit> get history => visits.where((v) => v.successful).toList();
+  List<Visit> get serviceBookVisits => visits.where((v) => v.serviceBook).toList();
+
+  List<Visit> get history => serviceBookVisits;
+
+  static String _normPlate(String s) => s.replaceAll(RegExp(r'[\s\-]'), '').toUpperCase();
+
+  List<Visit> visitsForCar(Vehicle car) {
+    final cid = int.tryParse(car.id);
+    final plate = _normPlate(car.plate);
+    final make = car.make.toLowerCase();
+    final title = '${car.make} ${car.model}'.toLowerCase().trim();
+    return serviceBookVisits.where((v) {
+      if (cid != null && v.carProfileId != null && v.carProfileId == cid) return true;
+      final vp = _normPlate(v.carPlate);
+      if (plate.length >= 4 && (vp.contains(plate) || plate.contains(vp))) return true;
+      final raw = v.carPlate.toLowerCase();
+      if (title.length > 4 && raw.contains(title)) return true;
+      if (make.length > 2 && raw.contains(make)) return true;
+      return false;
+    }).toList()
+      ..sort((a, b) => b.when.compareTo(a.when));
+  }
+
+  List<PopularService> popularServices = [
+    PopularService(
+      id: 'oil',
+      title: 'Замена масла',
+      price: 'от 5 990 ₽',
+      description: 'Масло и фильтр под ваш VAG, работа мастера.',
+      image: 'assets/offer-oil.png',
+    ),
+  ];
 
   List<AppNote> get unreadNotes => notes.where((n) => !n.read).toList();
 
@@ -563,6 +614,7 @@ class MockStore extends ChangeNotifier {
       refreshBonuses(),
       refreshRecommendations(),
       refreshPromos(),
+      refreshPopularServices(),
       refreshTickets(),
       registerPush(),
     ]);
@@ -620,7 +672,16 @@ class MockStore extends ChangeNotifier {
     if (api.token == null) return;
     final prev = {for (final v in visits) v.id: (v.status, v.isReady)};
     final prevStaff = chat.where((m) => m.fromStaff).length;
-    await Future.wait([refreshVisits(), refreshNotes(), refreshChat(), refreshBonuses(), refreshRecommendations(), refreshPromos(), refreshTickets()]);
+    await Future.wait([
+      refreshVisits(),
+      refreshNotes(),
+      refreshChat(),
+      refreshBonuses(),
+      refreshRecommendations(),
+      refreshPromos(),
+      refreshPopularServices(),
+      refreshTickets(),
+    ]);
     await syncWidget();
     for (final v in visits) {
       final old = prev[v.id];
@@ -805,11 +866,13 @@ class MockStore extends ChangeNotifier {
             for (final w in m['works'] as List) '$w',
         ];
         final oid = '${m['id'] ?? mapped.length}';
+        final serviceBook = m['service_book'] == true || m['successful'] == true;
         mapped.add(Visit(
           id: oid,
-          serviceTitle: 'Сделка #$oid',
+          serviceTitle: works.isNotEmpty ? works.first : 'Сделка #$oid',
           branchName: '${m['branch'] ?? ''}',
-          carPlate: '${m['car'] ?? ''}',
+          carPlate: '${m['car_plate'] ?? m['car'] ?? ''}',
+          carProfileId: int.tryParse('${m['car_id'] ?? ''}'),
           when: _parseTs(m['calendar_from'] ?? m['created']),
           status: _visitStatus('${m['status'] ?? ''}'),
           amount: int.tryParse('${m['sum'] ?? m['works_sum'] ?? ''}'),
@@ -821,8 +884,9 @@ class MockStore extends ChangeNotifier {
           statusId: int.tryParse('${m['status_id'] ?? ''}'),
           stage: '${m['stage'] ?? ''}',
           isReady: m['is_ready'] == true,
-          isHistory: m['is_history'] == true || m['successful'] == true,
+          isHistory: m['is_history'] == true || serviceBook,
           successful: m['successful'] == true,
+          serviceBook: serviceBook,
           steps: [
             if (m['steps'] is List)
               for (final s in m['steps'] as List)
@@ -858,6 +922,31 @@ class MockStore extends ChangeNotifier {
     final b = api.base;
     if (b.isEmpty) return 'http://45.81.33.7/privacy.html';
     return '$b/privacy.html';
+  }
+
+  Future<void> refreshPopularServices() async {
+    try {
+      final res = await api.get('/v1/popular-services');
+      final raw = res['items'];
+      if (raw is! List || raw.isEmpty) return;
+      final mapped = <PopularService>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final title = '${item['title'] ?? ''}';
+        if (title.isEmpty) continue;
+        mapped.add(PopularService(
+          id: '${item['id'] ?? title}',
+          title: title,
+          price: '${item['price'] ?? ''}',
+          description: '${item['description'] ?? ''}',
+          image: '${item['image'] ?? ''}',
+        ));
+      }
+      if (mapped.isNotEmpty) {
+        popularServices = mapped;
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   Future<void> refreshPromos() async {
@@ -988,6 +1077,7 @@ class MockStore extends ChangeNotifier {
         refreshBonuses(),
         refreshRecommendations(),
         refreshPromos(),
+        refreshPopularServices(),
         refreshTickets(),
         registerPush(),
       ]);

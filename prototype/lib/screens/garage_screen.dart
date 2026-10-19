@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
+import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 class GarageScreen extends StatefulWidget {
@@ -156,14 +157,42 @@ class _GarageScreenState extends State<GarageScreen> {
   }
 }
 
-class CarDetailScreen extends StatelessWidget {
+class CarDetailScreen extends StatefulWidget {
   const CarDetailScreen({super.key, required this.store, required this.car});
   final MockStore store;
   final Vehicle car;
 
   @override
+  State<CarDetailScreen> createState() => _CarDetailScreenState();
+}
+
+class _CarDetailScreenState extends State<CarDetailScreen> {
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStore);
+    widget.store.refreshVisits().whenComplete(() {
+      if (mounted) setState(() => loading = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onStore);
+    super.dispose();
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final history = store.history.where((v) => v.carPlate == car.plate).toList();
+    final store = widget.store;
+    final car = widget.car;
+    final history = store.visitsForCar(car);
     return Scaffold(
       appBar: AppBar(title: Text('${car.make} ${car.model}')),
       body: ListView(
@@ -216,19 +245,24 @@ class CarDetailScreen extends StatelessWidget {
             child: const Text('Удалить из гаража'),
           ),
           const SizedBox(height: 16),
-          const Text('История (только закрытые ЗН)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const Text('История обслуживания', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           const SizedBox(height: 8),
-          if (history.isEmpty) const Text('Пока нет закрытых заказ-нарядов', style: TextStyle(color: vagMuted)),
+          if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: vagRed, strokeWidth: 2))),
+          if (!loading && history.isEmpty)
+            const Text('Пока нет успешно закрытых сделок по этому авто в CRM', style: TextStyle(color: vagMuted)),
           ...history.map((v) => Card(
                 child: ListTile(
                   title: Text(v.serviceTitle),
                   subtitle: Text(
-                    '${DateFormat('d MMM yyyy', 'ru').format(v.when)} · ${v.branchName}'
+                    'Сделка #${v.id} · ${DateFormat('d MMM yyyy', 'ru').format(v.when)} · ${v.branchName}'
                     '${v.mileage != null ? '\nПробег ${v.mileage} км' : ''}'
                     '${v.works.isNotEmpty ? '\n${v.works.join(' · ')}' : ''}'
                     '${v.parts.isNotEmpty ? '\nЗапчасти: ${v.parts.join(', ')}' : ''}',
                   ),
-                  trailing: Text(v.amount != null ? '${v.amount} ₽' : '', style: const TextStyle(color: vagRed, fontWeight: FontWeight.w700)),
+                  trailing: Text(v.amount != null ? '${v.amount} ₽' : 'PDF', style: const TextStyle(color: vagRed, fontWeight: FontWeight.w700)),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => WorkOrderScreen(store: store, visit: v)),
+                  ),
                 ),
               )),
         ],

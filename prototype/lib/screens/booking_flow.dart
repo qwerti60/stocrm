@@ -4,10 +4,11 @@ import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 class BookingFlow extends StatefulWidget {
-  const BookingFlow({super.key, required this.store, this.initialService, this.initialBranch});
+  const BookingFlow({super.key, required this.store, this.initialService, this.initialBranch, this.initialComment});
   final MockStore store;
   final ServiceItem? initialService;
   final Branch? initialBranch;
+  final String? initialComment;
 
   @override
   State<BookingFlow> createState() => _BookingFlowState();
@@ -33,6 +34,10 @@ class _BookingFlowState extends State<BookingFlow> {
     car = widget.store.activeCar;
     service = widget.initialService;
     branch = widget.initialBranch;
+    final seed = widget.initialComment?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      commentCtrl.text = seed;
+    }
     if (branch != null) step = 1;
   }
 

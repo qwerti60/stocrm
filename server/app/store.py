@@ -24,6 +24,8 @@ _EMPTY: dict[str, Any] = {
     "shorts": [],
     "hidden_shorts": [],
     "hidden_promos": [],
+    "popular_services": [],
+    "hidden_popular_services": [],
     "audience": {},
     "identities": {},
     "hidden_cars": {},
@@ -57,6 +59,33 @@ DEFAULT_PROMOS = [
         "badge": "Акция",
         "pinned": True,
         "kind": "promo",
+    },
+]
+
+DEFAULT_POPULAR_SERVICES = [
+    {
+        "id": "oil",
+        "title": "Замена масла",
+        "price": "от 5 990 ₽",
+        "description": "Масло и фильтр под ваш VAG, работа мастера, контроль уровня и сброс сервисного интервала при возможности.",
+        "image": "assets/offer-oil.png",
+        "sort": 1,
+    },
+    {
+        "id": "diag",
+        "title": "Диагностика",
+        "price": "БЕСПЛАТНО при записи",
+        "description": "Компьютерная диагностика, первичный осмотр, рекомендации по узлам. Бесплатно при записи через приложение.",
+        "image": "assets/offer-brakes.png",
+        "sort": 2,
+    },
+    {
+        "id": "ac",
+        "title": "Заправка кондиционера",
+        "price": "от 2 990 ₽",
+        "description": "Проверка герметичности, заправка фреоном, тест давления и работы климат-системы.",
+        "image": "assets/offer-timing.png",
+        "sort": 3,
     },
 ]
 
@@ -429,6 +458,18 @@ def is_bonus_offer(status_id: int, title: str) -> bool:
     if status_id in (4, 5, 5648) or any(x in t for x in ("отказ", "мусор", "не приехал")):
         return False
     return status_id == 6 or "успешн" in t
+
+
+def is_service_book_offer(status_id: int, title: str) -> bool:
+    """Электронный сервисбук и PDF: успешно реализовано + закрытые «Выполнен» / «Готов»."""
+    if is_bonus_offer(status_id, title):
+        return True
+    t = (title or "").lower()
+    if status_id in (4, 5, 5648) or any(x in t for x in ("отказ", "мусор", "не приехал")):
+        return False
+    if status_id in (6845, 17953) or "выполнен" in t or "готов" in t:
+        return True
+    return False
 
 
 def _offer_ts(o: dict[str, Any]) -> int:
@@ -1056,6 +1097,130 @@ def delete_short(sid: str) -> bool:
         data["shorts"] = kept
         if any(d["id"] == sid for d in DEFAULT_SHORTS):
             hidden = data.setdefault("hidden_shorts", [])
+            if sid not in hidden:
+                hidden.append(sid)
+            removed = True
+        if not removed:
+            return False
+        _save(data)
+    return True
+
+
+def list_popular_services() -> list[dict[str, Any]]:
+    with _LOCK:
+        data = _load()
+        own = list(data.get("popular_services") or [])
+        hidden = {str(x) for x in (data.get("hidden_popular_services") or [])}
+    own_ids = {str(x.get("id")) for x in own if x.get("id")}
+    out = sorted(own, key=lambda r: int(r.get("sort") or 0))
+    for d in DEFAULT_POPULAR_SERVICES:
+        if d["id"] in hidden or d["id"] in own_ids:
+            continue
+        out.append(dict(d))
+    return sorted(out, key=lambda r: int(r.get("sort") or 0))
+
+
+def list_popular_services_admin() -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    with _LOCK:
+        data = _load()
+        own = list(data.get("popular_services") or [])
+        hidden = {str(x) for x in (data.get("hidden_popular_services") or [])}
+    own_ids = {str(x.get("id")) for x in own if x.get("id")}
+    for row in own:
+        items.append({**row, "builtin": False})
+    for d in DEFAULT_POPULAR_SERVICES:
+        if d["id"] in own_ids or d["id"] in hidden:
+            continue
+        items.append({**d, "builtin": True})
+    return sorted(items, key=lambda r: int(r.get("sort") or 0))
+
+
+def add_popular_service(
+    *,
+    title: str,
+    price: str = "",
+    description: str = "",
+    image: str = "",
+    sort: int = 0,
+) -> dict[str, Any]:
+    row = {
+        "id": uuid.uuid4().hex[:10],
+        "title": title.strip(),
+        "price": price.strip(),
+        "description": description.strip(),
+        "image": image.strip(),
+        "sort": int(sort),
+        "created": int(time.time()),
+    }
+    with _LOCK:
+        data = _load()
+        data.setdefault("popular_services", []).append(row)
+        _save(data)
+    return row
+
+
+def update_popular_service(
+    sid: str,
+    *,
+    title: str,
+    price: str = "",
+    description: str = "",
+    image: str = "",
+    sort: int = 0,
+) -> dict[str, Any]:
+    sid = (sid or "").strip()
+    if not sid:
+        raise KeyError("id")
+    title = title.strip()
+    if not title:
+        raise ValueError("title")
+    with _LOCK:
+        data = _load()
+        rows: list[dict[str, Any]] = data.setdefault("popular_services", [])
+        for row in rows:
+            if str(row.get("id")) == sid:
+                row["title"] = title
+                row["price"] = price.strip()
+                row["description"] = description.strip()
+                row["image"] = image.strip()
+                row["sort"] = int(sort)
+                row["updated"] = int(time.time())
+                _save(data)
+                return dict(row)
+        builtin = next((dict(d) for d in DEFAULT_POPULAR_SERVICES if d["id"] == sid), None)
+        if not builtin:
+            raise KeyError(sid)
+        fork = {
+            **builtin,
+            "title": title,
+            "price": price.strip(),
+            "description": description.strip(),
+            "image": image.strip() or builtin.get("image", ""),
+            "sort": int(sort),
+            "updated": int(time.time()),
+            "created": int(time.time()),
+        }
+        hidden = data.setdefault("hidden_popular_services", [])
+        if sid in hidden:
+            hidden.remove(sid)
+        rows.append(fork)
+        _save(data)
+        return fork
+
+
+def delete_popular_service(sid: str) -> bool:
+    sid = (sid or "").strip()
+    if not sid:
+        return False
+    with _LOCK:
+        data = _load()
+        rows: list[dict[str, Any]] = data.setdefault("popular_services", [])
+        kept = [r for r in rows if str(r.get("id")) != sid]
+        removed = len(kept) != len(rows)
+        data["popular_services"] = kept
+        if any(d["id"] == sid for d in DEFAULT_POPULAR_SERVICES):
+            hidden = data.setdefault("hidden_popular_services", [])
             if sid not in hidden:
                 hidden.append(sid)
             removed = True
