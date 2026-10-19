@@ -1,21 +1,31 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
+import 'package:stocrm_mobile_app/screens/chat_screen.dart';
+import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
+import 'package:stocrm_mobile_app/screens/vin_screen.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, required this.store});
+  const ProfileScreen({
+    super.key,
+    required this.store,
+    this.onOpenBranches,
+    this.onOpenBook,
+  });
   final MockStore store;
+  final VoidCallback? onOpenBranches;
+  final VoidCallback? onOpenBook;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Профиль', style: TextStyle(fontWeight: FontWeight.w800))),
+      appBar: AppBar(title: const Text('Ещё', style: TextStyle(fontWeight: FontWeight.w800))),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
           Card(
             child: ListTile(
@@ -39,6 +49,59 @@ class ProfileScreen extends StatelessWidget {
                 Text('${store.bonus}', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
                 Text('Текущий баланс · накоплено ${store.bonusAccrued}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Сервис', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: Badge(
+                isLabelVisible: store.unreadChat > 0,
+                label: Text('${store.unreadChat}'),
+                child: const Icon(Icons.chat_bubble_outline, color: vagRed),
+              ),
+              title: const Text('Чат с сервисом', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text('${store.staffName} · ответ 24/7', style: const TextStyle(color: vagMuted)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                store.markChatRead();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.map_outlined, color: vagRed),
+              title: const Text('СТО на карте'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onOpenBranches ?? () {},
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.event_available_outlined, color: vagRed),
+              title: const Text('Запись на обслуживание'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onOpenBook ?? () {},
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.lightbulb_outline, color: vagRed),
+              title: const Text('Рекомендации по авто'),
+              subtitle: Text('${store.recommendations.length} советов', style: const TextStyle(color: vagMuted)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.search, color: vagRed),
+              title: const Text('Подбор запчастей по VIN'),
+              subtitle: store.openTicketCount > 0 ? Text('${store.openTicketCount} заявок в работе', style: const TextStyle(color: vagMuted)) : null,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store))),
             ),
           ),
           const SizedBox(height: 16),

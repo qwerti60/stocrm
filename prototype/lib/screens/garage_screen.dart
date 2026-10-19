@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
+import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
+import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
@@ -17,7 +19,25 @@ class _GarageScreenState extends State<GarageScreen> {
   String q = '';
 
   @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStore);
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onStore);
+    super.dispose();
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final store = widget.store;
+    final next = store.nextVisit;
     final cars = widget.store.cars.where((c) {
       if (q.isEmpty) return true;
       final s = '${c.make} ${c.model} ${c.plate} ${c.vin ?? ''}'.toLowerCase();
@@ -29,14 +49,51 @@ class _GarageScreenState extends State<GarageScreen> {
         actions: [IconButton(onPressed: () => _addCar(context), icon: const Icon(Icons.add, color: vagRed))],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
           TextField(
             decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск по авто, номеру, VIN'),
             onChanged: (v) => setState(() => q = v),
           ),
           const SizedBox(height: 8),
-                    const Text('Машины из карточки клиента в STOCRM. Добавление и удаление пишутся в CRM.', style: TextStyle(color: vagMuted, fontSize: 12)),
+          const Text('Авто, сервисная книжка и история обслуживания — как в FIT SERVICE.', style: TextStyle(color: vagMuted, fontSize: 12)),
+          if (next != null) ...[
+            const SizedBox(height: 12),
+            Card(
+              color: vagRed.withValues(alpha: 0.08),
+              child: ListTile(
+                leading: const Icon(Icons.build_circle_outlined, color: vagRed),
+                title: Text('Статус ремонта · ${next.status}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text('${next.serviceTitle} · ${DateFormat('d MMM, HH:mm', 'ru').format(next.when)}'),
+                trailing: const Icon(Icons.chevron_right, color: vagRed),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: store, visit: next))),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store))),
+                  child: const Text('Запись'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
+                  child: const Text('Сервисбук'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
+            icon: const Icon(Icons.lightbulb_outline, size: 20),
+            label: Text('Рекомендации (${store.recommendations.length})'),
+          ),
           const SizedBox(height: 12),
           if (cars.isEmpty)
             Card(

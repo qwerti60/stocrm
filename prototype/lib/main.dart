@@ -20,6 +20,7 @@ import 'package:stocrm_mobile_app/app_badge.dart';
 import 'package:stocrm_mobile_app/local_push.dart';
 import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/fit_bottom_bar.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseBackground(RemoteMessage message) async {
@@ -158,15 +159,15 @@ class _ShellScreenState extends State<ShellScreen> {
     if (screen == null || screen.isEmpty) return;
     widget.store.clearPendingScreen();
     if (screen == 'garage') {
-      setState(() => _index = 1);
-    } else if (screen == 'book') {
-      setState(() => _index = 2);
-    } else if (screen == 'branches') {
       setState(() => _index = 3);
+    } else if (screen == 'book') {
+      setState(() => _index = FitBottomBar.bookIndex);
+    } else if (screen == 'branches') {
+      setState(() => _index = 1);
     } else if (screen == 'chat') {
-      setState(() => _index = 4);
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: widget.store)));
     } else if (screen == 'profile') {
-      setState(() => _index = 5);
+      setState(() => _index = 4);
     } else if (screen == 'status') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store)));
     } else if (screen == 'recommendations') {
@@ -182,42 +183,40 @@ class _ShellScreenState extends State<ShellScreen> {
     final pages = [
       HomeScreen(
         store: store,
-        onOpenBook: () => setState(() => _index = 2),
-        onOpenProfile: () => setState(() => _index = 5),
-        onOpenGarage: () => setState(() => _index = 1),
-        onOpenBranches: () => setState(() => _index = 3),
+        onOpenBook: () => setState(() => _index = FitBottomBar.bookIndex),
+        onOpenProfile: () => setState(() => _index = 4),
+        onOpenGarage: () => setState(() => _index = 3),
+        onOpenBranches: () => setState(() => _index = 1),
+        onOpenChat: () {
+          store.markChatRead();
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
+        },
       ),
-      GarageScreen(store: store),
-      BookScreen(store: store),
       BranchesScreen(store: store),
-      ChatScreen(store: store),
-      ProfileScreen(store: store),
+      BookScreen(store: store),
+      GarageScreen(store: store),
+      ProfileScreen(
+        store: store,
+        onOpenBranches: () => setState(() => _index = 1),
+        onOpenBook: () => setState(() => _index = FitBottomBar.bookIndex),
+      ),
     ];
 
+    final profileBadge = store.unreadChat + store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').length;
+
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) {
-          if (i == 4) widget.store.markChatRead();
-          setState(() => _index = i);
-        },
-        destinations: [
-          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Главная'),
-          const NavigationDestination(icon: Icon(Icons.directions_car_outlined), selectedIcon: Icon(Icons.directions_car), label: 'Гараж'),
-          const NavigationDestination(icon: Icon(Icons.event_available_outlined), selectedIcon: Icon(Icons.event_available), label: 'Запись'),
-          const NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on), label: 'Адреса'),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: store.unreadChat > 0 || store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').isNotEmpty,
-              label: Text('${store.unreadChat + store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').length}'),
-              child: const Icon(Icons.chat_bubble_outline),
-            ),
-            selectedIcon: const Icon(Icons.chat_bubble),
-            label: 'Чаты',
-          ),
-          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
-        ],
+      floatingActionButton: FitBookFab(
+        active: _index == FitBottomBar.bookIndex,
+        onPressed: () => setState(() => _index = FitBottomBar.bookIndex),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: FitBottomBar(
+        index: _index,
+        profileBadge: profileBadge,
+        onBook: () => setState(() => _index = FitBottomBar.bookIndex),
+        onSelect: (i) => setState(() => _index = i),
       ),
     );
   }

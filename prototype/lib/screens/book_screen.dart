@@ -22,9 +22,9 @@ class _BookScreenState extends State<BookScreen> {
       return '${s.title} ${s.subtitle}'.toLowerCase().contains(q.toLowerCase());
     }).toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Запись', style: TextStyle(fontWeight: FontWeight.w800))),
+      appBar: AppBar(title: const Text('Запись на сервис', style: TextStyle(fontWeight: FontWeight.w800))),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
           const Text('Авто → филиал (Московский, Эрвье, Республика) → свободное время.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),

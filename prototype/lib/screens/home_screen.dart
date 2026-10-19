@@ -19,12 +19,14 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenProfile,
     required this.onOpenGarage,
     required this.onOpenBranches,
+    required this.onOpenChat,
   });
   final MockStore store;
   final VoidCallback onOpenBook;
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenGarage;
   final VoidCallback onOpenBranches;
+  final VoidCallback onOpenChat;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -150,16 +152,21 @@ class _HomeScreenState extends State<HomeScreen> {
           Transform.translate(
             offset: const Offset(0, -22),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      _QuickTile(icon: Icons.search, label: 'Поиск\nпо VIN', badge: store.openTicketCount, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store)))),
                       _QuickTile(icon: Icons.event_available_outlined, label: 'Запись\nна сервис', onTap: widget.onOpenBook),
-                      _QuickTile(icon: Icons.directions_car_outlined, label: 'Моё\nавто', onTap: widget.onOpenGarage),
-                      _QuickTile(icon: Icons.settings_outlined, label: 'Каталог\nзапчастей', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VinScreen(store: store)))),
+                      _QuickTile(icon: Icons.map_outlined, label: 'СТО\nна карте', onTap: widget.onOpenBranches),
+                      _QuickTile(icon: Icons.directions_car_outlined, label: 'Гараж\nи история', onTap: widget.onOpenGarage),
+                      _QuickTile(
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Чат\nподдержки',
+                        badge: store.unreadChat,
+                        onTap: widget.onOpenChat,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -291,7 +298,7 @@ class _HeroBlock extends StatelessWidget {
       title: 'ИСТОРИЯ РЕМОНТА\nВ ',
       accent: 'СЕРВИСБУКЕ',
       sub: 'Заказ-наряды и PDF всегда под рукой в приложении.',
-      image: 'assets/brand-home.png',
+      image: 'assets/hero-car.png',
       tags: false,
     ),
   ];
@@ -367,7 +374,7 @@ class _HeroBlock extends StatelessWidget {
               ),
             ),
             SizedBox(
-              height: 210,
+              height: 232,
               child: PageView.builder(
                 controller: controller,
                 itemCount: _slides.length,
@@ -375,41 +382,58 @@ class _HeroBlock extends StatelessWidget {
                 itemBuilder: (_, i) {
                   final s = _slides[i];
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Stack(
-                      clipBehavior: Clip.none,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Positioned(
-                          right: -24,
-                          top: -6,
-                          bottom: 28,
-                          width: 240,
-                          child: Image.asset(s.image, fit: BoxFit.cover, alignment: Alignment.centerRight),
-                        ),
-                        if (s.tags) ...[
-                          Positioned(right: 0, top: 36, child: _HeroTag(icon: Icons.medical_services_outlined, label: 'ДИАГНОСТИКА')),
-                          Positioned(right: 8, top: 72, child: _HeroTag(icon: Icons.settings, label: 'ЗАПЧАСТИ')),
-                          Positioned(right: 40, top: 108, child: _HeroTag(icon: Icons.build, label: 'СЕРВИС')),
-                          Positioned(right: 0, top: 144, child: _HeroTag(icon: Icons.fact_check_outlined, label: 'ТЕХОБСЛУЖИВАНИЕ')),
-                        ],
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            RichText(
-                              text: TextSpan(
-                                style: vagHeroHeadline,
-                                children: [
-                                  TextSpan(text: s.title),
-                                  TextSpan(text: s.accent, style: const TextStyle(color: vagRed)),
-                                ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RichText(
+                                text: TextSpan(
+                                  style: vagHeroHeadline.copyWith(fontSize: 19, height: 1.15),
+                                  children: [
+                                    TextSpan(text: s.title),
+                                    TextSpan(text: s.accent, style: const TextStyle(color: vagRed)),
+                                  ],
+                                ),
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                s.sub,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: vagHeroSub.copyWith(color: Colors.white.withValues(alpha: 0.78), fontSize: 12, height: 1.35),
+                              ),
+                              if (s.tags) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: const [
+                                    _HeroChip(label: 'Диагностика', icon: Icons.medical_services_outlined),
+                                    _HeroChip(label: 'Запчасти', icon: Icons.settings_outlined),
+                                    _HeroChip(label: 'Сервис', icon: Icons.build_outlined),
+                                    _HeroChip(label: 'ТО', icon: Icons.fact_check_outlined),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(
+                            width: 128,
+                            height: 168,
+                            child: Image.asset(
+                              s.image,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.centerRight,
                             ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: 210,
-                              child: Text(s.sub, style: vagHeroSub.copyWith(color: Colors.white.withValues(alpha: 0.78))),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -458,30 +482,39 @@ class _HeroBlock extends StatelessWidget {
   }
 }
 
-class _HeroTag extends StatelessWidget {
-  const _HeroTag({required this.icon, required this.label});
-  final IconData icon;
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({required this.label, required this.icon});
   final String label;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: Colors.white24),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: vagRed),
+          Icon(icon, size: 13, color: vagRed),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.3)),
+          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
         ],
       ),
     );
   }
+}
+
+String _carHeroAsset(Vehicle car) {
+  final m = car.make.toLowerCase();
+  if (m.contains('audi')) return 'assets/brand-audi.png';
+  if (m.contains('volkswagen') || m.contains('vw')) return 'assets/brand-vw.png';
+  if (m.contains('skoda')) return 'assets/brand-skoda.png';
+  if (m.contains('seat')) return 'assets/brand-seat.png';
+  return 'assets/hero-car.png';
 }
 
 class _QuickTile extends StatelessWidget {
@@ -584,37 +617,37 @@ class _PopularServiceRow extends StatelessWidget {
           decoration: lightPanelDecoration(radius: 14),
           padding: const EdgeInsets.all(10),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  image,
-                  width: 72,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 72,
-                    height: 56,
-                    color: vagBorder,
-                    child: Icon(icon, color: vagRed),
+                child: SizedBox(
+                  width: 68,
+                  height: 68,
+                  child: Image.asset(
+                    image,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => ColoredBox(
+                      color: vagBorder,
+                      child: Icon(icon, color: vagRed, size: 28),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Icon(icon, color: vagRed, size: 22),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: vagInk)),
-                    const SizedBox(height: 2),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: vagInk)),
+                    const SizedBox(height: 4),
                     Text(
                       price,
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
-                        color: priceRed ? vagRed : vagInk,
+                        color: priceRed ? vagRed : vagMutedInk,
                       ),
                     ),
                   ],
@@ -642,27 +675,45 @@ class _DiagPromoBanner extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            height: 96,
-            child: Stack(
-              fit: StackFit.expand,
+            height: 100,
+            child: Row(
               children: [
-                Positioned(right: 0, top: 0, bottom: 0, width: 200, child: Image.asset('assets/diag-car.png', fit: BoxFit.cover, alignment: Alignment.centerRight)),
-                const Positioned(left: 0, top: 0, bottom: 0, width: 6, child: ColoredBox(color: vagRed)),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 100, 12),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'КОМПЛЕКСНАЯ ДИАГНОСТИКА\nБЕСПЛАТНО ПРИ ЗАПИСИ НА СЕРВИС',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11, height: 1.25),
+                Container(width: 4, color: vagRed),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'КОМПЛЕКСНАЯ ДИАГНОСТИКА\nБЕСПЛАТНО ПРИ ЗАПИСИ НА СЕРВИС',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11, height: 1.3),
+                          ),
                         ),
-                      ),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: const BoxDecoration(color: vagRed, shape: BoxShape.circle),
-                        child: const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(color: vagRed, shape: BoxShape.circle),
+                          child: const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 112,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.asset('assets/diag-car.png', fit: BoxFit.cover, alignment: Alignment.centerLeft),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [const Color(0xFF1A0508), const Color(0xFF1A0508).withValues(alpha: 0)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -710,51 +761,73 @@ class _CarBlock extends StatelessWidget {
       );
     }
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Container(
-            decoration: lightPanelDecoration(),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 100,
-                  width: double.infinity,
-                  child: Image.asset('assets/brand-home.png', fit: BoxFit.cover, alignment: Alignment.center),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${car!.make} ${car!.model}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: vagInk)),
-                      if (car!.year > 0) Text('${car!.year} · ${car!.mileage} км', style: const TextStyle(color: vagMutedInk, fontSize: 12)),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(border: Border.all(color: vagBorder), borderRadius: BorderRadius.circular(8)),
-                        child: Text(car!.plate, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2, color: vagInk)),
-                      ),
-                    ],
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: lightPanelDecoration(),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 108,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.asset(
+                          _carHeroAsset(car!),
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.black.withValues(alpha: 0.35)],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${car!.make} ${car!.model}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: vagInk)),
+                        if (car!.year > 0)
+                          Text('${car!.year} · ${NumberFormat.decimalPattern('ru').format(car!.mileage)} км', style: const TextStyle(color: vagMutedInk, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(border: Border.all(color: vagBorder), borderRadius: BorderRadius.circular(8), color: vagSurface),
+                          child: Text(car!.plate, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1, color: vagInk)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 76,
+            child: Column(
+              children: [
+                _SideAction(icon: Icons.menu_book_outlined, label: 'Сервисбук', onTap: onHistory),
+                const SizedBox(height: 8),
+                _SideAction(icon: Icons.insights_outlined, label: 'Советы', badge: recs, onTap: onRecs),
+                const SizedBox(height: 8),
+                _SideAction(icon: Icons.notifications_active_outlined, label: 'Напомнить', onTap: onService, dot: true),
               ],
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          children: [
-            _SideAction(icon: Icons.description_outlined, label: 'История\nработ', onTap: onHistory),
-            const SizedBox(height: 8),
-            _SideAction(icon: Icons.insights_outlined, label: 'Рекомен-\nдации', badge: recs, onTap: onRecs),
-            const SizedBox(height: 8),
-            _SideAction(icon: Icons.notifications_active_outlined, label: 'Следующее\nТО', onTap: onService, dot: true),
-          ],
-        ),
-      ],
+        ],
     );
   }
 }
@@ -776,18 +849,27 @@ class _SideAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 72,
-          height: 72,
+          width: 76,
+          height: 76,
           decoration: lightPanelDecoration(radius: 12),
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, color: vagRed, size: 22),
-                  const SizedBox(height: 4),
-                  Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, height: 1.1, color: vagInk)),
+                  Icon(icon, color: vagRed, size: 24),
+                  const SizedBox(height: 6),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: vagInk),
+                    ),
+                  ),
                 ],
               ),
               if (badge > 0)

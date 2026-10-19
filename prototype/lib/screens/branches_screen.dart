@@ -89,7 +89,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
     final selected = branches.where((b) => b.id == selectedId).firstOrNull;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Адреса', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text('СТО на карте', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: [
           TextButton.icon(
             onPressed: locating ? null : _nearest,
@@ -183,7 +183,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
             ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               children: [
                 ...branches.map((b) => _card(b, selected: b.id == selectedId)),
               ],
