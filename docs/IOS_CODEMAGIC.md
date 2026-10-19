@@ -29,3 +29,39 @@ Distribution-сертификат в Codemagic: **Denis Sumarokov (`C7D47SWZAU`)
 В Xcode (`DEVELOPMENT_TEAM`) должен быть тот же **`C7D47SWZAU`**.
 
 При загрузке APNs-ключа в Firebase **Team ID** тоже **`C7D47SWZAU`**, иначе FCM ответит `Invalid APNs credential`.
+
+## `MISSING_EXPORT_COMPLIANCE` и «Failed to publish … beta review»
+
+IPA **уже загружен** (в логе `Processing state: VALID`, `Version: 25`). Codemagic падает на шаге **отправки в TestFlight / beta review**, потому что в App Store Connect не заполнены обязательные поля.
+
+### 1. Export compliance (для уже загруженного билда 25)
+
+1. [App Store Connect → TestFlight](https://appstoreconnect.apple.com/apps/6817341079/testflight/ios) → билд **25** (или тот, что в статусе *Missing Compliance*).
+2. Нажать **Manage** / **Provide Export Compliance Information**.
+3. Ответ: **No** — приложение использует только стандартное HTTPS-шифрование (или эквивалент «не использует шифрование, не подпадающее под исключения»).
+
+В репозитории в `ios/Runner/Info.plist` добавлен **`ITSAppUsesNonExemptEncryption` = false** — для **следующих** загрузок Apple часто проставляет compliance автоматически.
+
+### 2. Beta App Information (обязательно)
+
+Открыть: [TestFlight → Test Information](https://appstoreconnect.apple.com/apps/6817341079/testflight/test-info)
+
+| Поле | Пример |
+|------|--------|
+| **Beta App Feedback Email** | `support@vagmarket.ru` или ваш рабочий email |
+| **Beta App Review Information** → First Name, Last Name, Phone, Email | контакт того, кто ответит Apple при проверке внешней беты |
+
+Сохранить.
+
+### 3. Не обязательно ждать новую сборку
+
+После пунктов 1–2:
+
+- **Internal Testing:** TestFlight → Internal Testing → **+** → выбрать билд **25** → тестировщики из команды ASC получат сборку без повторной загрузки IPA.
+- **Codemagic:** перезапустить упавшую сборку — шаг **Publish to TestFlight** со 2-й попытки пойдёт с **`--skip-package-upload`** (только доведение TestFlight до конца).
+
+### 4. Внешние тестировщики (External Testing)
+
+Нужны заполненные поля из п. 2 + **Submit for Review** для группы External. До этого external state будет `MISSING_*`.
+
+Codemagic **красный** при этом не значит, что IPA пропал — проверяйте ASC, а не только лог CI.

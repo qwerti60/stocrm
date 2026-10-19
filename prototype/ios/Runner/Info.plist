@@ -72,6 +72,8 @@
 	<string>Геолокация нужна, чтобы найти ближайший филиал VAG Market на карте. В фоне она не используется.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Геолокация нужна, чтобы найти ближайший филиал VAG Market на карте. В фоне она не используется.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>
