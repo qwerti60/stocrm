@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     stocrm_sid: str = ""
     stocrm_board_id: int | None = None
     stocrm_source_id: int | None = None
+    stocrm_booking_responsible_id: int | None = None
+    stocrm_manager_phone: str = "+7 (963) 975-20-90"
     dev_otp_code: str = "1234"
     smtp_host: str = ""
     smtp_port: int = 587
@@ -44,7 +46,7 @@ class Settings(BaseSettings):
     def admin_key(self) -> str:
         return (self.admin_password or self.bff_secret or "").strip()
 
-    @field_validator("stocrm_board_id", "stocrm_source_id", mode="before")
+    @field_validator("stocrm_board_id", "stocrm_source_id", "stocrm_booking_responsible_id", mode="before")
     @classmethod
     def empty_int(cls, v: Any) -> Any:
         if v is None or v == "":

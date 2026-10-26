@@ -4,13 +4,15 @@ import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
 class RecommendationsScreen extends StatelessWidget {
-  const RecommendationsScreen({super.key, required this.store});
+  const RecommendationsScreen({super.key, required this.store, this.filterCar});
   final MockStore store;
+  final Vehicle? filterCar;
 
   @override
   Widget build(BuildContext context) {
+    final list = filterCar == null ? store.recommendations : store.recommendationsForCar(filterCar!);
     final grouped = <String, List<RepairRec>>{};
-    for (final r in store.recommendations) {
+    for (final r in list) {
       final key = r.car.isEmpty ? 'Авто не указано' : '${r.car}${r.plate.isNotEmpty ? ' · ${r.plate}' : ''}';
       grouped.putIfAbsent(key, () => []).add(r);
     }
@@ -21,8 +23,11 @@ class RecommendationsScreen extends StatelessWidget {
         children: [
           const Text('Рекомендации привязаны к автомобилю. Лампа на главной горит, пока есть активные.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),
-          if (store.recommendations.isEmpty)
-            const Text('Активных рекомендаций нет.', style: TextStyle(color: vagMuted)),
+          if (list.isEmpty)
+            Text(
+              filterCar == null ? 'Активных рекомендаций нет.' : 'Для ${filterCar!.make} ${filterCar!.model} рекомендаций пока нет.',
+              style: const TextStyle(color: vagMuted),
+            ),
           for (final entry in grouped.entries) ...[
             Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 6),

@@ -177,6 +177,18 @@ def _user_key(user: dict[str, Any]) -> str:
     return thread_key(user.get("contact_id"), user.get("phone"))
 
 
+def _plate_from_car_row(c: dict[str, Any]) -> str:
+    plate = str(c.get("LICENSE_PLATE") or "").strip()
+    if plate and plate.lower() not in ("false", "0"):
+        return plate
+    num = str(c.get("LICENSE_PLATE_NUMBER") or "").strip()
+    if not num or num.lower() in ("false", "0"):
+        return ""
+    reg = c.get("LICENSE_PLATE_REGION")
+    reg_s = "" if reg in (None, False, "", "False", "false", 0) else str(reg).strip()
+    return f"{num}{reg_s}" if reg_s else num
+
+
 def _car_out(c: dict[str, Any]) -> dict[str, Any]:
     title = c.get("TITLE") or " ".join(x for x in (c.get("BRAND_NAME"), c.get("MODEL_NAME")) if x).strip()
     brand = c.get("BRAND_NAME")
@@ -193,7 +205,7 @@ def _car_out(c: dict[str, Any]) -> dict[str, Any]:
         "generation": c.get("GENERATION_NAME"),
         "year": c.get("YEAR"),
         "vin": c.get("VIN") or None,
-        "plate": c.get("LICENSE_PLATE") or "",
+        "plate": _plate_from_car_row(c),
         "mileage": c.get("MILEAGE"),
         "sold": c.get("SOLD"),
         "color": c.get("COLOR"),
@@ -206,7 +218,7 @@ def _car_visible(c: dict[str, Any], hidden: set[int]) -> bool:
         return False
     if str(c.get("SOLD") or "N").upper() in ("Y", "1", "TRUE"):
         return False
-    plate = str(c.get("LICENSE_PLATE") or "").strip()
+    plate = _plate_from_car_row(c)
     vin = str(c.get("VIN") or "").strip()
     if not plate and not vin:
         return False
@@ -598,10 +610,28 @@ def otp_confirm(body: OtpIn) -> dict[str, Any]:
 @app.get("/v1/me")
 def me(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
+    token = authorization.split(" ", 1)[1].strip() if authorization else ""
+    cid = user.get("contact_id")
+    phone = user.get("phone")
+    if phone and not cid:
+        try:
+            contact = stocrm.find_contact(str(phone))
+            if contact:
+                new_cid = int(contact.get("CONTACT_ID") or contact.get("ID") or 0) or None
+                if new_cid:
+                    user["contact_id"] = new_cid
+                    user["contact"] = contact
+                    user["name"] = user.get("name") or contact.get("TITLE") or contact.get("FIRSTNAME") or "Клиент"
+                    if token:
+                        sessions[token] = user
+                        put_session(token, user)
+                    cid = new_cid
+        except Exception:
+            pass
     return {
         "phone": user.get("phone"),
         "email": user.get("email"),
-        "contact_id": user.get("contact_id"),
+        "contact_id": cid or user.get("contact_id"),
         "name": user.get("name"),
     }
 
@@ -715,26 +745,47 @@ def garage_delete(car_id: int, authorization: str | None = Header(default=None))
     return {"ok": True, "sold_in_crm": sold, "cars": _garage_merged(int(cid))}
 
 
+def _cars_index(contact_id: int) -> dict[int, dict[str, Any]]:
+    idx: dict[int, dict[str, Any]] = {}
+    for c in stocrm.cars_by_contact(int(contact_id)):
+        row = _car_out(c)
+        cid = int(row.get("id") or 0)
+        if cid:
+            idx[cid] = row
+    return idx
+
+
+def _enrich_offer(mapped: dict[str, Any], cars: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    car_id = mapped.get("car_id")
+    if car_id and int(car_id) in cars:
+        car = cars[int(car_id)]
+        if car.get("plate"):
+            mapped["car_plate"] = car["plate"]
+        if car.get("vin"):
+            mapped["car_vin"] = car["vin"]
+        if not mapped.get("car") or mapped.get("car") == "—":
+            mapped["car"] = car.get("title") or mapped.get("car")
+    return mapped
+
+
 @app.get("/v1/visits")
 def visits(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
     cid = user.get("contact_id")
     if not cid:
         return {"offers": []}
-    offers = stocrm.offers_by_contact(int(cid), all_boards=True, pages=20)
+    cid = int(cid)
+    offers = stocrm.offers_by_contact(cid, all_boards=True, pages=30)
+    cars = _cars_index(cid)
     oids = [int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")]
     works = stocrm.works_index(oids)
     parts = stocrm.materials_index(oids)
-    return {
-        "offers": [
-            _offer_out(
-                o,
-                works.get(int(o.get("OFFER_ID") or 0), []),
-                parts.get(int(o.get("OFFER_ID") or 0), []),
-            )
-            for o in offers
-        ]
-    }
+    out: list[dict[str, Any]] = []
+    for o in offers:
+        oid = int(o.get("OFFER_ID") or 0)
+        mapped = _offer_out(o, works.get(oid, []), parts.get(oid, []))
+        out.append(_enrich_offer(mapped, cars))
+    return {"offers": out}
 
 
 @app.get("/v1/slots")
@@ -792,6 +843,10 @@ def bookings(body: BookingIn, authorization: str | None = Header(default=None)) 
         comment = f"{comment}\nСлот: {body.when}"
     if body.branch_id:
         comment = f"{comment}\nФилиал: {body.branch_id}"
+    mgr = (settings.stocrm_manager_phone or "").strip()
+    if mgr:
+        comment = f"{comment}\nМенеджер: {mgr}"
+    comment = f"{comment}\nТелефон клиента: {user.get('phone') or ''}"
     try:
         created = stocrm.offer_new(
             int(cid),
@@ -938,6 +993,30 @@ def bonuses_get(authorization: str | None = Header(default=None)) -> dict[str, A
     return bonus_statement(int(cid))
 
 
+def _match_car_row(cars: list[dict[str, Any]], *, car_title: str = "", vin: str = "") -> dict[str, Any] | None:
+    title_l = car_title.lower()
+    vin_l = vin.lower()
+    for c in cars:
+        row = _car_out(c)
+        if vin_l and row.get("vin") and str(row["vin"]).lower() == vin_l:
+            return row
+        model = str(row.get("model") or "").lower()
+        full = str(row.get("title") or "").lower()
+        if title_l and model and model in title_l:
+            return row
+        if title_l and full and (full in title_l or title_l in full):
+            return row
+    return None
+
+
+def _is_crm_recommendation_work(w: dict[str, Any]) -> bool:
+    flag = w.get("IS_RECOMMENDATION_FLAG")
+    if flag is True or str(flag).upper() in ("Y", "1", "TRUE"):
+        return True
+    title = str(w.get("WORK_TYPE_TITLE") or "").lower()
+    return "рекоменд" in title
+
+
 @app.get("/v1/recommendations")
 def recommendations_get(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
@@ -945,42 +1024,34 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
     items: list[dict[str, Any]] = []
     if cid:
         try:
-            offers = stocrm.offers_by_contact(int(cid))
-            oids = [int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")]
-            works = stocrm.works_index(oids)
+            cid = int(cid)
+            raw_cars = stocrm.cars_by_contact(cid)
+            cars_idx = _cars_index(cid)
             seen: set[str] = set()
-            for o in offers:
-                oid = int(o.get("OFFER_ID") or 0)
-                mapped = _offer_out(o, works.get(oid, []))
-                if mapped.get("is_history") or mapped.get("stage") == "closed":
+            for w in stocrm.works_by_contact(cid):
+                if not _is_crm_recommendation_work(w):
                     continue
-                car_title = mapped.get("car") or ""
-                for w in mapped.get("works") or []:
-                    key = f"{car_title}|{w}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    items.append({
-                        "title": w,
-                        "subtitle": mapped.get("status") or "открытая заявка",
-                        "offer_id": mapped.get("id"),
-                        "car": car_title,
-                        "car_id": "",
-                    })
-                comment = str(o.get("COMMENT") or o.get("OFFER_COMMENT") or "").strip()
-                if comment and any(x in comment.lower() for x in ("рекоменд", "советуем", "пора замен")):
-                    key = f"{car_title}|c|{comment[:80]}"
-                    if key not in seen:
-                        seen.add(key)
-                        items.append({
-                            "title": comment[:200],
-                            "subtitle": "из комментария к сделке",
-                            "offer_id": mapped.get("id"),
-                            "car": car_title,
-                            "car_id": "",
-                        })
-            cars = stocrm.cars_by_contact(int(cid))
-            for c in cars:
+                desc = str(w.get("DESCRIPTION") or w.get("TITLE") or w.get("WORK_OBJECT_NAME") or "").strip()
+                if len(desc) < 3:
+                    continue
+                car_title = str(w.get("CAR_TITLE") or "").strip()
+                matched = _match_car_row(raw_cars, car_title=car_title, vin=str(w.get("VIN") or ""))
+                car_id = str((matched or {}).get("id") or "")
+                plate = str((matched or {}).get("plate") or "")
+                car_label = str((matched or {}).get("title") or car_title or "Авто")
+                key = f"{car_id}|{desc[:120]}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append({
+                    "title": desc[:200],
+                    "subtitle": "рекомендация мастера · STOCRM",
+                    "offer_id": w.get("OFFER_ID"),
+                    "car": car_label,
+                    "plate": plate,
+                    "car_id": car_id,
+                })
+            for c in raw_cars:
                 km = c.get("MILEAGE")
                 nxt = c.get("NEXT_SERVICE_KM") or c.get("TO_MILEAGE")
                 mapped_car = _car_out(c)
@@ -989,13 +1060,16 @@ def recommendations_get(authorization: str | None = Header(default=None)) -> dic
                 car_id = str(mapped_car.get("id") or "")
                 if nxt and km:
                     left = int(nxt) - int(km)
-                    items.append({
-                        "title": f"ТО: {'пора записываться' if left <= 0 else f'через {left} км'}",
-                        "subtitle": "пробег из карточки авто",
-                        "car": title,
-                        "plate": plate,
-                        "car_id": car_id,
-                    })
+                    key = f"{car_id}|to"
+                    if key not in seen:
+                        seen.add(key)
+                        items.append({
+                            "title": f"ТО: {'пора записываться' if left <= 0 else f'через {left} км'}",
+                            "subtitle": "пробег из карточки авто",
+                            "car": title,
+                            "plate": plate,
+                            "car_id": car_id,
+                        })
                 for field, val in c.items():
                     if "RECOMM" not in str(field).upper():
                         continue

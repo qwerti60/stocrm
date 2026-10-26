@@ -134,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final next = store.nextVisit;
     final unread = store.unreadNotes.length;
     final car = store.activeCar;
-    final recs = store.recommendations.length;
+    final recs = car == null ? store.recommendations.length : store.recommendationsForCar(car).length;
 
     return Scaffold(
       backgroundColor: vagSurface,
@@ -249,7 +249,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     recs: recs,
                     onGarage: widget.onOpenGarage,
                     onHistory: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
-                    onRecs: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store))),
+                    onRecs: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => RecommendationsScreen(store: store, filterCar: car),
+                      ),
+                    ),
                     onService: widget.onOpenBook,
                   ),
                 ],
@@ -508,14 +512,6 @@ class _HeroChip extends StatelessWidget {
   }
 }
 
-String _carHeroAsset(Vehicle car) {
-  final m = car.make.toLowerCase();
-  if (m.contains('audi')) return 'assets/brand-audi.png';
-  if (m.contains('volkswagen') || m.contains('vw')) return 'assets/brand-vw.png';
-  if (m.contains('skoda')) return 'assets/brand-skoda.png';
-  if (m.contains('seat')) return 'assets/brand-seat.png';
-  return 'assets/hero-car.png';
-}
 
 class _QuickTile extends StatelessWidget {
   const _QuickTile({required this.icon, required this.label, required this.onTap, this.badge = 0});
@@ -626,7 +622,7 @@ class _PopularServiceRow extends StatelessWidget {
                   height: 68,
                   child: Image.asset(
                     image,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => ColoredBox(
                       color: vagBorder,
                       child: Icon(icon, color: vagRed, size: 28),
@@ -777,9 +773,9 @@ class _CarBlock extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         Image.asset(
-                          _carHeroAsset(car!),
+                          'assets/hero-car.png',
                           fit: BoxFit.cover,
-                          alignment: Alignment.center,
+                          alignment: Alignment.centerRight,
                         ),
                         DecoratedBox(
                           decoration: BoxDecoration(

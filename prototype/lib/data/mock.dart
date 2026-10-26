@@ -434,17 +434,33 @@ class MockStore extends ChangeNotifier {
     final cid = int.tryParse(car.id);
     final plate = _normPlate(car.plate);
     final make = car.make.toLowerCase();
+    final model = car.model.toLowerCase();
     final title = '${car.make} ${car.model}'.toLowerCase().trim();
+    final vin = (car.vin ?? '').toLowerCase();
     return serviceBookVisits.where((v) {
       if (cid != null && v.carProfileId != null && v.carProfileId == cid) return true;
       final vp = _normPlate(v.carPlate);
       if (plate.length >= 4 && (vp.contains(plate) || plate.contains(vp))) return true;
       final raw = v.carPlate.toLowerCase();
+      if (vin.length >= 8 && raw.contains(vin)) return true;
       if (title.length > 4 && raw.contains(title)) return true;
+      if (model.length > 2 && raw.contains(model)) return true;
       if (make.length > 2 && raw.contains(make)) return true;
       return false;
     }).toList()
       ..sort((a, b) => b.when.compareTo(a.when));
+  }
+
+  List<RepairRec> recommendationsForCar(Vehicle car) {
+    final cid = int.tryParse(car.id);
+    final plate = _normPlate(car.plate);
+    final model = car.model.toLowerCase();
+    return recommendations.where((r) {
+      if (cid != null && r.carId.isNotEmpty && int.tryParse(r.carId) == cid) return true;
+      if (plate.length >= 4 && _normPlate(r.plate).contains(plate)) return true;
+      if (model.length > 2 && r.car.toLowerCase().contains(model)) return true;
+      return false;
+    }).toList();
   }
 
   List<PopularService> popularServices = [
@@ -903,7 +919,12 @@ class MockStore extends ChangeNotifier {
       visits = mapped;
       notifyListeners();
       await syncWidget();
-    } catch (_) {}
+    } catch (_) {
+      if (crmLive) {
+        visits = [];
+        notifyListeners();
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> bookRemote({required String comment, int? carId, String? branchId, String? when}) async {
@@ -1066,6 +1087,7 @@ class MockStore extends ChangeNotifier {
       final cid = me['contact_id'];
       crmContactId = cid is int ? cid : int.tryParse('$cid');
       foundInCrm = crmContactId != null;
+      if (crmLive) recommendations = [];
       notifyListeners();
       startPolling();
       await Future.wait([

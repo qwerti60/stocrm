@@ -261,6 +261,9 @@ class StoCrm:
             payload["CAR_PROFILE_ID"] = car_id
         if customer_id:
             payload["CUSTOMER_ID"] = customer_id
+        rid = settings.stocrm_booking_responsible_id
+        if rid:
+            payload["OFFER_RESPONSIBLE_ID"] = int(rid)
         if settings.stocrm_source_id is not None:
             payload["SOURCE_ID"] = settings.stocrm_source_id
         try:
@@ -287,6 +290,20 @@ class StoCrm:
             {"FILTER": {"CUSTOMER_ID": customer_id}, "PAGE": 1, "LIMIT": 50},
         )
         return _as_list(data)
+
+    def works_by_contact(self, contact_id: int, *, pages: int = 6) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        max_pages = max(int(pages or 1), 1)
+        for page in range(1, max_pages + 1):
+            data = self.call(
+                "work/get_filtered",
+                {"FILTER": {"CONTACT_ID": int(contact_id)}, "PAGE": page, "LIMIT": 50},
+            )
+            rows = _as_list(data)
+            out.extend(rows)
+            if not rows or len(rows) < 50:
+                break
+        return out
 
     def works_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:
         wanted = {int(x) for x in (offer_ids or []) if x}

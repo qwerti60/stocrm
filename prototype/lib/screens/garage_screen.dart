@@ -230,7 +230,10 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
   void initState() {
     super.initState();
     widget.store.addListener(_onStore);
-    widget.store.refreshVisits().whenComplete(() {
+    Future.wait([
+      widget.store.refreshVisits(),
+      widget.store.refreshRecommendations(),
+    ]).whenComplete(() {
       if (mounted) setState(() => loading = false);
     });
   }
@@ -250,6 +253,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
     final store = widget.store;
     final car = widget.car;
     final history = store.visitsForCar(car);
+    final recs = store.recommendationsForCar(car);
     return Scaffold(
       appBar: AppBar(title: Text('${car.make} ${car.model}')),
       body: ListView(
@@ -301,12 +305,32 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
             },
             child: const Text('Удалить из гаража'),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RecommendationsScreen(store: store, filterCar: car)),
+            ),
+            icon: const Icon(Icons.lightbulb_outline, size: 20),
+            label: Text('Рекомендации для этого авто (${recs.length})'),
+          ),
           const SizedBox(height: 16),
           const Text('История обслуживания', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           const SizedBox(height: 8),
           if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: vagRed, strokeWidth: 2))),
           if (!loading && history.isEmpty)
-            const Text('Пока нет успешно закрытых сделок по этому авто в CRM', style: TextStyle(color: vagMuted)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Нет закрытых заказ-нарядов с привязкой к этому авто. Часть сделок в CRM без машины — смотрите полный сервисбук.',
+                  style: TextStyle(color: vagMuted),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitsScreen(store: store))),
+                  child: Text('Весь сервисбук (${store.serviceBookVisits.length})'),
+                ),
+              ],
+            ),
           ...history.map((v) => Card(
                 child: ListTile(
                   title: Text(v.serviceTitle),
