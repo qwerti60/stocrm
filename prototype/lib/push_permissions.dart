@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:stocrm_mobile_app/local_push.dart';
 
 /// Запрос уведомлений на iOS (появляется пункт в «Настройки → приложение»).
 /// Не зависит от Firebase — plist нужен отдельно для FCM-токена.
@@ -8,6 +9,7 @@ Future<void> ensureIosNotificationRegistration() async {
   try {
     await Permission.notification.request();
   } catch (_) {}
+  await ensureLocalPushPermissions();
 }
 
 Future<void> openSystemAppSettings() async {

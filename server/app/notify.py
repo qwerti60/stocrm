@@ -123,6 +123,7 @@ def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> 
     aps: dict[str, Any] = {
         "alert": {"title": title, "body": body},
         "sound": "default",
+        "interruption-level": "active",
     }
     if badge is not None and badge >= 0:
         aps["badge"] = int(badge)

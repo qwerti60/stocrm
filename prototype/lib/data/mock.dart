@@ -645,6 +645,7 @@ class MockStore extends ChangeNotifier {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
       if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await ensureLocalPushPermissions();
         for (var i = 0; i < 8; i++) {
           final apns = await messaging.getAPNSToken();
           if (apns != null && apns.isNotEmpty) break;

@@ -32,6 +32,15 @@ Future<void> _firebaseBackground(RemoteMessage message) async {
       await syncAppIconBadge(n);
     }
   }
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await initLocalPush();
+    await ensureLocalPushPermissions();
+    final title = message.notification?.title ?? message.data['title']?.toString() ?? 'VAG Market';
+    final body = message.notification?.body ?? message.data['body']?.toString() ?? '';
+    if (title.trim().isNotEmpty) {
+      await showBannerPush(id: message.hashCode, title: title, body: body);
+    }
+  }
 }
 
 Future<void> _setupPushPermissions() async {

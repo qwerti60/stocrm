@@ -11,6 +11,11 @@ Future<void> initLocalPush() async {
     requestAlertPermission: false,
     requestBadgePermission: false,
     requestSoundPermission: false,
+    defaultPresentAlert: true,
+    defaultPresentBanner: true,
+    defaultPresentList: true,
+    defaultPresentSound: true,
+    defaultPresentBadge: true,
   );
   await localPush.initialize(
     const InitializationSettings(android: android, iOS: ios),
@@ -27,6 +32,15 @@ Future<void> initLocalPush() async {
           ),
         );
   }
+}
+
+Future<void> ensureLocalPushPermissions() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+  try {
+    await localPush
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
+  } catch (_) {}
 }
 
 Future<void> showBannerPush({required int id, required String title, required String body}) async {
