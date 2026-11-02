@@ -86,45 +86,80 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 }
 
-class WorkOrderScreen extends StatelessWidget {
+class WorkOrderScreen extends StatefulWidget {
   const WorkOrderScreen({super.key, required this.store, required this.visit});
   final MockStore store;
   final Visit visit;
 
   @override
+  State<WorkOrderScreen> createState() => _WorkOrderScreenState();
+}
+
+class _WorkOrderScreenState extends State<WorkOrderScreen> {
+  late Visit _visit;
+  bool loading = true;
+  final _pdfKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _visit = widget.visit;
+    widget.store.fetchVisitDetail(_visit.id).then((v) {
+      if (mounted) {
+        setState(() {
+          if (v != null) _visit = v;
+          loading = false;
+        });
+      }
+    });
+  }
+
+  Rect? _shareOrigin() {
+    final box = _pdfKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final offset = box.localToGlobal(Offset.zero);
+    return offset & box.size;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM yyyy, HH:mm', 'ru');
+    final v = _visit;
     return Scaffold(
-      appBar: AppBar(title: Text('Сделка #${visit.id}')),
+      appBar: AppBar(title: Text('Сделка #${v.id}')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(visit.serviceTitle, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          if (loading) const Padding(padding: EdgeInsets.only(bottom: 12), child: LinearProgressIndicator(color: vagRed, minHeight: 2)),
+          Text(v.serviceTitle, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           const SizedBox(height: 6),
-          Text('${visit.carPlate} · ${visit.branchName}', style: const TextStyle(color: vagMuted)),
-          Text(df.format(visit.when), style: const TextStyle(color: vagMuted)),
-          if (visit.amount != null) Text('${visit.amount} ₽', style: const TextStyle(fontWeight: FontWeight.w800, color: vagRed, fontSize: 18)),
+          Text('${v.carPlate} · ${v.branchName}', style: const TextStyle(color: vagMuted)),
+          Text(df.format(v.when), style: const TextStyle(color: vagMuted)),
+          if (v.amount != null) Text('${v.amount} ₽', style: const TextStyle(fontWeight: FontWeight.w800, color: vagRed, fontSize: 18)),
           const SizedBox(height: 16),
           const Text('Работы', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
-          if (visit.works.isEmpty) const Text('—', style: TextStyle(color: vagMuted)),
-          ...visit.works.map((w) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $w'))),
+          if (v.works.isEmpty) const Text('—', style: TextStyle(color: vagMuted)),
+          ...v.works.map((w) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $w'))),
           const SizedBox(height: 12),
           const Text('Запчасти и материалы', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
-          if (visit.parts.isEmpty) const Text('—', style: TextStyle(color: vagMuted)),
-          ...visit.parts.map((w) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $w'))),
+          if (v.parts.isEmpty) const Text('—', style: TextStyle(color: vagMuted)),
+          ...v.parts.map((w) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $w'))),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () async {
-              try {
-                await store.shareVisitPdf(visit);
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-                }
-              }
-            },
+            key: _pdfKey,
+            onPressed: loading
+                ? null
+                : () async {
+                    try {
+                      await widget.store.shareVisitPdf(v, shareOrigin: _shareOrigin());
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                      }
+                    }
+                  },
             icon: const Icon(Icons.picture_as_pdf),
             label: const Text('Скачать PDF'),
           ),

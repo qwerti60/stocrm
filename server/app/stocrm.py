@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+import re
 import time
 
 from app.config import settings
@@ -16,10 +17,22 @@ class StoCrmError(RuntimeError):
         self.body = body
 
 
+def _crm_phone_digits(raw: Any) -> str:
+    d = re.sub(r"\D", "", str(raw or ""))
+    if not d or d.lower() in ("false", "none", "0"):
+        return ""
+    if d.startswith("8") and len(d) == 11:
+        d = "7" + d[1:]
+    if len(d) == 10:
+        d = "7" + d
+    return d if len(d) == 11 and d.startswith("7") else ""
+
+
 class StoCrm:
     def __init__(self) -> None:
         self._client = httpx.Client(timeout=60.0)
         self._statuses: list[dict[str, Any]] | None = None
+        self._users_cache: list[dict[str, Any]] | None = None
 
     def close(self) -> None:
         self._client.close()
@@ -244,6 +257,49 @@ class StoCrm:
         data = self.call("customers/get_filtered", {"FILTER": {}, "PAGE": 1, "LIMIT": 50})
         return _as_list(data)
 
+    def users(self, *, pages: int = 3) -> list[dict[str, Any]]:
+        """Сотрудники CRM: Public API users/get_from_filter (stocrm.ru/wiki/article/WIKI-A-720/)."""
+        if self._users_cache is not None:
+            return self._users_cache
+        out: list[dict[str, Any]] = []
+        max_pages = max(int(pages or 1), 1)
+        for page in range(1, max_pages + 1):
+            data = self.call(
+                "users/get_from_filter",
+                {"FILTER": {}, "PAGE": page, "LIMIT": 100},
+            )
+            rows = _as_list(data)
+            out.extend(rows)
+            total = _total_count(data)
+            if not rows or len(rows) < 100:
+                break
+            if total and len(out) >= total:
+                break
+        self._users_cache = out
+        return out
+
+    def user_id_by_phone(self, phone: str) -> int | None:
+        want = _crm_phone_digits(phone)
+        if not want:
+            return None
+        for u in self.users():
+            uid = int(u.get("USER_ID") or 0)
+            if not uid:
+                continue
+            for key in ("PHONE", "WORK_PHONE"):
+                if _crm_phone_digits(u.get(key)) == want:
+                    return uid
+        return None
+
+    def booking_responsible_user_id(self) -> int | None:
+        rid = settings.stocrm_booking_responsible_id
+        if rid:
+            return int(rid)
+        mgr = (settings.stocrm_manager_phone or "").strip()
+        if mgr:
+            return self.user_id_by_phone(mgr)
+        return None
+
     def offer_new(
         self,
         contact_id: int,
@@ -261,7 +317,7 @@ class StoCrm:
             payload["CAR_PROFILE_ID"] = car_id
         if customer_id:
             payload["CUSTOMER_ID"] = customer_id
-        rid = settings.stocrm_booking_responsible_id
+        rid = self.booking_responsible_user_id()
         if rid:
             payload["OFFER_RESPONSIBLE_ID"] = int(rid)
         if settings.stocrm_source_id is not None:
@@ -305,7 +361,12 @@ class StoCrm:
                 break
         return out
 
-    def works_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:
+    def works_index(
+        self,
+        offer_ids: list[int] | None = None,
+        *,
+        contact_id: int | None = None,
+    ) -> dict[int, list[str]]:
         wanted = {int(x) for x in (offer_ids or []) if x}
         out: dict[int, list[str]] = {}
 
@@ -315,27 +376,51 @@ class StoCrm:
                 if not oid or (wanted and oid not in wanted):
                     continue
                 desc = str(
-                    w.get("DESCRIPTION") or w.get("TITLE") or w.get("NAME") or w.get("WORK_NAME") or ""
+                    w.get("DESCRIPTION")
+                    or w.get("TITLE")
+                    or w.get("DOCUMENT_TITLE")
+                    or w.get("NAME")
+                    or w.get("WORK_NAME")
+                    or ""
                 ).strip()
                 if desc:
-                    out.setdefault(oid, []).append(desc[:160])
+                    bucket = out.setdefault(oid, [])
+                    if desc not in bucket:
+                        bucket.append(desc[:160])
 
+        if contact_id:
+            for page in range(1, 41):
+                try:
+                    rows = _as_list(
+                        self.call(
+                            "work/get_filtered",
+                            {"FILTER": {"CONTACT_ID": int(contact_id)}, "PAGE": page, "LIMIT": 50},
+                        )
+                    )
+                except StoCrmError:
+                    break
+                ingest(rows)
+                if not rows or len(rows) < 50:
+                    break
         if wanted:
             for oid in sorted(wanted):
+                if oid in out:
+                    continue
                 try:
                     extra = _as_list(
                         self.call("work/get_filtered", {"FILTER": {"OFFER_ID": oid}, "PAGE": 1, "LIMIT": 50})
                     )
                 except StoCrmError:
-                    continue
+                    extra = []
                 ingest(extra)
-            return out
+            return {oid: out[oid] for oid in sorted(out.keys()) if oid in wanted}
 
-        try:
-            rows = _as_list(self.call("work/get_filtered", {"FILTER": {}, "PAGE": 1, "LIMIT": 80}))
-        except StoCrmError:
-            rows = []
-        ingest(rows)
+        if not out:
+            try:
+                rows = _as_list(self.call("work/get_filtered", {"FILTER": {}, "PAGE": 1, "LIMIT": 80}))
+            except StoCrmError:
+                rows = []
+            ingest(rows)
         return out
 
     def materials_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:

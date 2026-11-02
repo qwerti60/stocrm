@@ -232,6 +232,64 @@ def _offer_car(o: dict[str, Any]) -> tuple[int | None, str, str]:
     return car_id, plate, label
 
 
+def _offer_fallback_lines(o: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Если work/get_filtered пустой — хотя бы сумма/оплата/причина из карточки сделки."""
+    works: list[str] = []
+    parts: list[str] = []
+    reason = str(o.get("OFFER_REASON_TEXT") or "").strip()
+    if reason and reason not in ("-", "—"):
+        works.append(reason)
+    tags = o.get("TAGS_FRONT")
+    if isinstance(tags, list):
+        for t in tags:
+            s = str(t).strip()
+            if s and s.lower() not in ("false", "none"):
+                parts.append(s[:160])
+    elif tags and str(tags) not in ("False", "None", "", "0"):
+        parts.append(str(tags)[:160])
+
+    def _money(key: str) -> float:
+        raw = o.get(key)
+        if raw in (None, False, ""):
+            return 0.0
+        try:
+            return float(str(raw).replace(",", ".").replace(" ", ""))
+        except ValueError:
+            return 0.0
+
+    wsum = _money("WORKS_SUM")
+    osum = _money("ORDERS_SUM") or _money("OFFER_SUM")
+    if wsum > 0:
+        works.append(f"Работы по сделке: {wsum:.0f} ₽")
+    elif osum > 0:
+        line = f"Сумма заказа: {osum:.2f} ₽".replace(".00 ₽", " ₽")
+        works.append(line)
+    pay = str(o.get("PAYMENT_STATUS") or "").strip()
+    if pay and pay.lower() not in ("false", "none", ""):
+        parts.append(f"Оплата: {pay}")
+    mileage = o.get("OFFER_MILEAGE") or o.get("CAR_MILEAGE")
+    if mileage and str(mileage) not in ("False", "None", "", "0"):
+        parts.append(f"Пробег: {mileage} км")
+    return works, parts
+
+
+def _merge_works_parts(
+    o: dict[str, Any],
+    works: list[str] | None,
+    parts: list[str] | None,
+) -> tuple[list[str], list[str]]:
+    w = list(works or [])
+    p = list(parts or [])
+    if not w:
+        fw, fp = _offer_fallback_lines(o)
+        w.extend(fw)
+        if not p:
+            p.extend(fp)
+    if not w and not p:
+        w.append("Состав работ в CRM не передан через API — уточните у сервиса.")
+    return w, p
+
+
 def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[str] | None = None) -> dict[str, Any]:
     status_id = int(o.get("OFFER_STATUS_ID") or 0)
     title = str(o.get("STATUS_NAME") or "")
@@ -449,6 +507,43 @@ def probe(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"))
             continue
         results.append(stocrm.probe(path, payload))
     return {"base": settings.base_url, "results": results}
+
+
+@app.get("/internal/stocrm/users")
+def stocrm_users(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+    """Сотрудники CRM для `OFFER_RESPONSIBLE_ID` (wiki WIKI-A-720). Только с X-BFF-Secret."""
+    if not settings.is_dev_secret and x_bff_secret != settings.bff_secret:
+        raise HTTPException(404, "Not found")
+    rows = stocrm.users()
+    out = []
+    for u in rows:
+        uid = int(u.get("USER_ID") or 0)
+        if not uid:
+            continue
+        title = (u.get("TITLE") or "").strip()
+        if not title:
+            title = " ".join(
+                x for x in (u.get("LAST_NAME"), u.get("FIRST_NAME"), u.get("MIDDLE_NAME")) if x
+            ).strip()
+        out.append(
+            {
+                "user_id": uid,
+                "title": title,
+                "phone": _phone_out(u.get("PHONE")),
+                "work_phone": _phone_out(u.get("WORK_PHONE")),
+            }
+        )
+    out.sort(key=lambda x: x["title"].lower())
+    mgr = (settings.stocrm_manager_phone or "").strip()
+    resolved = stocrm.booking_responsible_user_id()
+    return {
+        "wiki": "https://stocrm.ru/wiki/article/WIKI-A-720/",
+        "api_method": "users/get_from_filter",
+        "manager_phone": mgr,
+        "booking_responsible_user_id": resolved,
+        "env": "STOCRM_BOOKING_RESPONSIBLE_ID",
+        "users": out,
+    }
 
 
 def _lookup_contact(phone: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
@@ -778,14 +873,36 @@ def visits(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     offers = stocrm.offers_by_contact(cid, all_boards=True, pages=30)
     cars = _cars_index(cid)
     oids = [int(o.get("OFFER_ID") or 0) for o in offers if o.get("OFFER_ID")]
-    works = stocrm.works_index(oids)
+    works = stocrm.works_index(oids, contact_id=cid)
     parts = stocrm.materials_index(oids)
     out: list[dict[str, Any]] = []
     for o in offers:
         oid = int(o.get("OFFER_ID") or 0)
-        mapped = _offer_out(o, works.get(oid, []), parts.get(oid, []))
+        w, p = _merge_works_parts(o, works.get(oid, []), parts.get(oid, []))
+        mapped = _offer_out(o, w, p)
         out.append(_enrich_offer(mapped, cars))
     return {"offers": out}
+
+
+def _visit_for_contact(contact_id: int, oid: int) -> dict[str, Any]:
+    offers = stocrm.offers_by_contact(contact_id, all_boards=True, pages=30)
+    found = next((o for o in offers if int(o.get("OFFER_ID") or 0) == int(oid)), None)
+    if not found:
+        raise HTTPException(404, "Заказ-наряд не найден")
+    works_map = stocrm.works_index([oid], contact_id=contact_id)
+    parts_map = stocrm.materials_index([oid])
+    w, p = _merge_works_parts(found, works_map.get(oid, []), parts_map.get(oid, []))
+    cars = _cars_index(contact_id)
+    return _enrich_offer(_offer_out(found, w, p), cars)
+
+
+@app.get("/v1/visits/{oid}")
+def visit_detail(oid: int, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = require_user(authorization)
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта")
+    return {"offer": _visit_for_contact(int(cid), oid)}
 
 
 @app.get("/v1/slots")
@@ -1123,16 +1240,9 @@ def visit_pdf(oid: int, authorization: str | None = Header(default=None)):
     cid = user.get("contact_id")
     if not cid:
         raise HTTPException(409, "Нет контакта")
-    offers = stocrm.offers_by_contact(int(cid), all_boards=True, pages=20)
-    found = next((o for o in offers if int(o.get("OFFER_ID") or 0) == int(oid)), None)
-    if not found:
-        raise HTTPException(404, "Заказ-наряд не найден")
-    works_map = stocrm.works_index([oid])
-    parts_map = stocrm.materials_index([oid])
-    mapped = _offer_out(found, works_map.get(oid, []), parts_map.get(oid, []))
+    mapped = _visit_for_contact(int(cid), oid)
     if not mapped.get("service_book"):
         raise HTTPException(400, "PDF доступен только по закрытым успешным сделкам")
-    works = works_map.get(oid, [])
     when = mapped.get("calendar_from") or mapped.get("created") or ""
     pdf = work_order_pdf(
         {
@@ -1142,7 +1252,7 @@ def visit_pdf(oid: int, authorization: str | None = Header(default=None)):
             "branch": mapped.get("branch") or "",
             "status": mapped.get("status") or "",
             "sum": mapped.get("sum") or mapped.get("works_sum") or "",
-            "works": works,
+            "works": mapped.get("works") or [],
             "parts": mapped.get("parts") or [],
         }
     )

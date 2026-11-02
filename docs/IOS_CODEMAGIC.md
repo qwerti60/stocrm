@@ -25,10 +25,11 @@
 
 ## Team ID
 
-Distribution-сертификат в Codemagic: **Denis Sumarokov (`C7D47SWZAU`)**.  
-В Xcode (`DEVELOPMENT_TEAM`) должен быть тот же **`C7D47SWZAU`**.
+**`9D79UST58L`** — команда в [Apple Developer → Membership](https://developer.apple.com/account).
 
-При загрузке APNs-ключа в Firebase **Team ID** тоже **`C7D47SWZAU`**, иначе FCM ответит `Invalid APNs credential`.
+- В Xcode: `DEVELOPMENT_TEAM = 9D79UST58L` (Signing & Capabilities).
+- В Codemagic группа **`ios_signing`**: distribution-сертификат и профили **этой** команды (после смены Team ID пересоздать или заново `fetch-signing-files --create`).
+- В Firebase при загрузке APNs-ключа **Team ID** тоже **`9D79UST58L`**, иначе FCM ответит `Invalid APNs credential`.
 
 ## `MISSING_EXPORT_COMPLIANCE` и «Failed to publish … beta review»
 

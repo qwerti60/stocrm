@@ -37,7 +37,7 @@ python probe.py
 - `GET /v1/visits` — сделки контакта на доске 1097 (история, воронка, работы)
 - `GET /v1/slots?branch_id=2113&date=2026-09-21` — свободные часы филиала
 - `GET /v1/branches` — активные филиалы (`customers/get_filtered`)
-- `POST /v1/bookings` — `offer/new` в воронку 1097
+- `POST /v1/bookings` — `offer/new` в воронку 1097, `OFFER_RESPONSIBLE_ID` из `STOCRM_BOOKING_RESPONSIBLE_ID` или по `STOCRM_MANAGER_PHONE` (`users/get_from_filter`, [WIKI-A-720](https://stocrm.ru/wiki/article/WIKI-A-720/))
 - `GET /v1/promos` — акции (те же, что рассылка)
 - `GET /v1/shorts` — слайдер
 - `GET /v1/search?q=` — поиск

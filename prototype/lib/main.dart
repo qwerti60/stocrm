@@ -1,5 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -213,7 +215,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
     final profileBadge = store.unreadChat + store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').length;
 
-    return Scaffold(
+    final shell = Scaffold(
       extendBody: true,
       body: IndexedStack(index: _index, children: pages),
       floatingActionButton: FitBookFab(
@@ -228,5 +230,17 @@ class _ShellScreenState extends State<ShellScreen> {
         onSelect: (i) => setState(() => _index = i),
       ),
     );
+
+    if (kIsWeb) {
+      final w = MediaQuery.sizeOf(context).width;
+      if (w > 520) {
+        final maxW = math.min(w, 1080.0);
+        return ColoredBox(
+          color: vagSurface,
+          child: Center(child: SizedBox(width: maxW, child: shell)),
+        );
+      }
+    }
+    return shell;
   }
 }

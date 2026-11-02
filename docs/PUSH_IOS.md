@@ -16,7 +16,7 @@ Android уже регистрирует FCM-токен при входе. Для
 | Поле | Значение |
 |------|----------|
 | **Key ID** | `Z53M239SM5` |
-| **Team ID** | `C7D47SWZAU` (Apple Distribution: Denis Sumarokov — как в Codemagic) |
+| **Team ID** | `9D79UST58L` (Apple Developer → Membership; тот же, что в Xcode и Firebase) |
 
 Локальная копия (не в git): `server/secrets/AuthKey_Z53M239SM5.p8`. Исходник храните только у себя; в репозиторий **не коммитить**.
 
@@ -25,7 +25,7 @@ Android уже регистрирует FCM-токен при входе. Для
 1. [Firebase Console](https://console.firebase.google.com/project/stocrm-edf31/settings/cloudmessaging) → **Project settings** → вкладка **Cloud Messaging**.
 2. Блок **Apple app configuration** → приложение **ru.app72.stocrmMobileApp**.
 3. **Upload** → файл `AuthKey_Z53M239SM5.p8`.
-4. **Key ID:** `Z53M239SM5` · **Team ID:** `C7D47SWZAU` → **Upload** (не путать с другим Team ID в Xcode).
+4. **Key ID:** `Z53M239SM5` · **Team ID:** `9D79UST58L` → **Upload** (Team ID = Membership в developer.apple.com).
 
 Без этого шага FCM принимает запросы с BFF, но **Apple не доставит** push на iPhone.
 
@@ -66,6 +66,6 @@ Android уже регистрирует FCM-токен при входе. Для
 2. Там же включите **Экран блокировки**, **Центр уведомлений** и **Баннеры** (стиль «Временные» или «Постоянные»).
 3. **Фокусирование / «Не беспокоить»** — разрешите уведомления от VAG Market.
 
-В приложении (сборка **18+**): при открытом приложении баннер дублируется через локальное уведомление; в фоне — через APNs. Если в Firebase Cloud Messaging для iOS была ошибка **`Invalid APNs credential`**, загрузите ключ `.p8` с **Team ID `C7D47SWZAU`**.
+В приложении (сборка **18+**): при открытом приложении баннер дублируется через локальное уведомление; в фоне — через APNs. Если в Firebase Cloud Messaging для iOS была ошибка **`Invalid APNs credential`**, перезагрузите ключ `.p8` с **Team ID `9D79UST58L`** (ключ должен быть создан в той же команде).
 
 Проверка с сервера: админка → рассылка на **89829209223** или `POST /v1/notifications/test` из приложения (после входа).

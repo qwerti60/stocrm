@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     stocrm_board_id: int | None = None
     stocrm_source_id: int | None = None
     stocrm_booking_responsible_id: int | None = None
-    stocrm_manager_phone: str = "+7 (963) 975-20-90"
+    stocrm_manager_phone: str = "+7 (982) 920-92-23"
     dev_otp_code: str = "1234"
     smtp_host: str = ""
     smtp_port: int = 587

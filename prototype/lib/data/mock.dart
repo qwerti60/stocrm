@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -145,6 +147,34 @@ class Visit {
   final bool successful;
   final bool serviceBook;
   final List<RepairStep> steps;
+
+  Visit copyWith({
+    List<String>? works,
+    List<String>? parts,
+    int? amount,
+    String? serviceTitle,
+  }) {
+    return Visit(
+      id: id,
+      serviceTitle: serviceTitle ?? this.serviceTitle,
+      branchName: branchName,
+      carPlate: carPlate,
+      carProfileId: carProfileId,
+      when: when,
+      status: status,
+      amount: amount ?? this.amount,
+      mileage: mileage,
+      works: works ?? this.works,
+      parts: parts ?? this.parts,
+      statusId: statusId,
+      stage: stage,
+      isReady: isReady,
+      isHistory: isHistory,
+      successful: successful,
+      serviceBook: serviceBook,
+      steps: steps,
+    );
+  }
 }
 
 class PopularService {
@@ -868,6 +898,50 @@ class MockStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Visit _visitFromMap(Map<String, dynamic> m, {String? fallbackId}) {
+    final works = [
+      if (m['works'] is List) for (final w in m['works'] as List) '$w',
+    ];
+    final parts = [
+      if (m['parts'] is List) for (final w in m['parts'] as List) '$w',
+    ];
+    final oid = '${m['id'] ?? fallbackId ?? ''}';
+    final serviceBook = m['service_book'] == true || m['successful'] == true;
+    final title = works.isNotEmpty
+        ? works.first
+        : (parts.isNotEmpty ? parts.first : 'Сделка #$oid');
+    return Visit(
+      id: oid,
+      serviceTitle: title,
+      branchName: '${m['branch'] ?? ''}',
+      carPlate: '${m['car_plate'] ?? m['car'] ?? ''}',
+      carProfileId: int.tryParse('${m['car_id'] ?? ''}'),
+      when: _parseTs(m['calendar_from'] ?? m['created']),
+      status: _visitStatus('${m['status'] ?? ''}'),
+      amount: int.tryParse('${m['sum'] ?? m['works_sum'] ?? ''}'),
+      mileage: int.tryParse('${m['car_mileage'] ?? m['mileage'] ?? ''}'),
+      works: works,
+      parts: parts,
+      statusId: int.tryParse('${m['status_id'] ?? ''}'),
+      stage: '${m['stage'] ?? ''}',
+      isReady: m['is_ready'] == true,
+      isHistory: m['is_history'] == true || serviceBook,
+      successful: m['successful'] == true,
+      serviceBook: serviceBook,
+      steps: [
+        if (m['steps'] is List)
+          for (final s in m['steps'] as List)
+            if (s is Map)
+              RepairStep(
+                title: '${s['title'] ?? ''}',
+                at: DateTime.now(),
+                done: s['done'] == true,
+                detail: s['detail']?.toString(),
+              ),
+      ],
+    );
+  }
+
   Future<void> refreshVisits() async {
     if (api.token == null) return;
     try {
@@ -877,45 +951,7 @@ class MockStore extends ChangeNotifier {
       final mapped = <Visit>[];
       for (final item in raw) {
         if (item is! Map) continue;
-        final m = Map<String, dynamic>.from(item);
-        final works = [
-          if (m['works'] is List)
-            for (final w in m['works'] as List) '$w',
-        ];
-        final oid = '${m['id'] ?? mapped.length}';
-        final serviceBook = m['service_book'] == true || m['successful'] == true;
-        mapped.add(Visit(
-          id: oid,
-          serviceTitle: works.isNotEmpty ? works.first : 'Сделка #$oid',
-          branchName: '${m['branch'] ?? ''}',
-          carPlate: '${m['car_plate'] ?? m['car'] ?? ''}',
-          carProfileId: int.tryParse('${m['car_id'] ?? ''}'),
-          when: _parseTs(m['calendar_from'] ?? m['created']),
-          status: _visitStatus('${m['status'] ?? ''}'),
-          amount: int.tryParse('${m['sum'] ?? m['works_sum'] ?? ''}'),
-          works: works,
-          parts: [
-            if (m['parts'] is List)
-              for (final w in m['parts'] as List) '$w',
-          ],
-          statusId: int.tryParse('${m['status_id'] ?? ''}'),
-          stage: '${m['stage'] ?? ''}',
-          isReady: m['is_ready'] == true,
-          isHistory: m['is_history'] == true || serviceBook,
-          successful: m['successful'] == true,
-          serviceBook: serviceBook,
-          steps: [
-            if (m['steps'] is List)
-              for (final s in m['steps'] as List)
-                if (s is Map)
-                  RepairStep(
-                    title: '${s['title'] ?? ''}',
-                    at: DateTime.now(),
-                    done: s['done'] == true,
-                    detail: s['detail']?.toString(),
-                  ),
-          ],
-        ));
+        mapped.add(_visitFromMap(Map<String, dynamic>.from(item), fallbackId: '${mapped.length}'));
       }
       visits = mapped;
       notifyListeners();
@@ -925,6 +961,24 @@ class MockStore extends ChangeNotifier {
         visits = [];
         notifyListeners();
       }
+    }
+  }
+
+  Future<Visit?> fetchVisitDetail(String id) async {
+    if (api.token == null) return null;
+    try {
+      final res = await api.get('/v1/visits/$id');
+      final raw = res['offer'];
+      if (raw is! Map) return null;
+      final v = _visitFromMap(Map<String, dynamic>.from(raw), fallbackId: id);
+      final i = visits.indexWhere((x) => x.id == id);
+      if (i >= 0) {
+        visits = [...visits.sublist(0, i), v, ...visits.sublist(i + 1)];
+      }
+      notifyListeners();
+      return v;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -1158,12 +1212,15 @@ class MockStore extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> shareVisitPdf(Visit visit) async {
+  Future<void> shareVisitPdf(Visit visit, {Rect? shareOrigin}) async {
     if (api.token == null) throw ApiException(401, 'Нет сессии');
     final bytes = await api.getBytes('/v1/visits/${visit.id}/pdf');
-    await Share.shareXFiles([
-      XFile.fromData(Uint8List.fromList(bytes), mimeType: 'application/pdf', name: 'ZN-${visit.id}.pdf'),
-    ], text: 'Заказ-наряд № ${visit.id}');
+    final origin = shareOrigin ?? const Rect.fromLTWH(0, 0, 1, 1);
+    await Share.shareXFiles(
+      [XFile.fromData(Uint8List.fromList(bytes), mimeType: 'application/pdf', name: 'ZN-${visit.id}.pdf')],
+      text: 'Заказ-наряд № ${visit.id}',
+      sharePositionOrigin: origin,
+    );
   }
 
   @override
