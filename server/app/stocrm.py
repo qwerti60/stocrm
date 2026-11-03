@@ -28,6 +28,84 @@ def _crm_phone_digits(raw: Any) -> str:
     return d if len(d) == 11 and d.startswith("7") else ""
 
 
+def _money_field(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        raw = row.get(key)
+        if raw in (None, False, ""):
+            continue
+        try:
+            val = float(str(raw).replace(",", ".").replace(" ", "").replace("\u00a0", ""))
+        except ValueError:
+            continue
+        if val > 0 or key.upper().endswith("COUNT"):
+            return val
+    return None
+
+
+def _work_line_out(w: dict[str, Any]) -> dict[str, Any] | None:
+    name = str(
+        w.get("DESCRIPTION")
+        or w.get("TITLE")
+        or w.get("DOCUMENT_TITLE")
+        or w.get("NAME")
+        or w.get("WORK_NAME")
+        or w.get("WORK_OBJECT_NAME")
+        or ""
+    ).strip()
+    if not name:
+        return None
+    qty = _money_field(w, "NORM_HOUR", "NORM_HOURS", "HOURS", "COUNT", "QUANTITY", "AMOUNT", "WORK_COUNT")
+    price = _money_field(w, "PRICE", "WORK_PRICE", "PRICE_FOR_UNIT", "PRICE_PER_HOUR", "HOUR_PRICE")
+    total = _money_field(w, "SUM", "WORK_SUM", "TOTAL", "WORK_TOTAL", "LINE_SUM")
+    unit = "н/ч"
+    if qty is None and _money_field(w, "COUNT", "QUANTITY") is not None:
+        unit = "шт"
+    meta = str(
+        w.get("USER_NAME")
+        or w.get("WORKER_NAME")
+        or w.get("EXECUTOR_NAME")
+        or w.get("MASTER_NAME")
+        or ""
+    ).strip()
+    line: dict[str, Any] = {"name": name[:200]}
+    if qty is not None:
+        line["qty"] = qty
+        line["unit"] = unit
+    if price is not None:
+        line["price"] = price
+    if total is not None:
+        line["sum"] = total
+    if meta:
+        line["meta"] = meta[:120]
+    return line
+
+
+def _material_line_out(r: dict[str, Any]) -> dict[str, Any] | None:
+    name = str(
+        r.get("NAME")
+        or r.get("TITLE")
+        or r.get("PRODUCT_NAME")
+        or r.get("MATERIAL_NAME")
+        or r.get("DESCRIPTION")
+        or ""
+    ).strip()
+    if not name:
+        return None
+    qty = _money_field(r, "COUNT", "QUANTITY", "AMOUNT", "QTY")
+    price = _money_field(r, "PRICE", "PRICE_FOR_UNIT", "UNIT_PRICE", "SELL_PRICE")
+    total = _money_field(r, "SUM", "TOTAL", "LINE_SUM", "MATERIAL_SUM")
+    unit = str(r.get("UNIT") or r.get("MEASURE") or r.get("UNIT_NAME") or "шт").strip() or "шт"
+    line: dict[str, Any] = {"name": name[:200]}
+    if qty is not None:
+        line["qty"] = qty
+        line["unit"] = unit[:16]
+    if price is not None:
+        line["price"] = price
+    if total is not None:
+        line["sum"] = total
+    return line
+
+
 class StoCrm:
     def __init__(self) -> None:
         self._client = httpx.Client(timeout=60.0)
@@ -424,10 +502,62 @@ class StoCrm:
         return out
 
     def materials_index(self, offer_ids: list[int] | None = None) -> dict[int, list[str]]:
+        rows_map = self.materials_rows_index(offer_ids)
+        return {oid: [str(x.get("name") or "") for x in lines if x.get("name")] for oid, lines in rows_map.items()}
+
+    def works_rows_index(
+        self,
+        offer_ids: list[int] | None = None,
+        *,
+        contact_id: int | None = None,
+    ) -> dict[int, list[dict[str, Any]]]:
+        wanted = {int(x) for x in (offer_ids or []) if x}
+        out: dict[int, list[dict[str, Any]]] = {}
+
+        def ingest(rows: list[dict[str, Any]]) -> None:
+            for w in rows:
+                oid = int(w.get("OFFER_ID") or 0)
+                if not oid or (wanted and oid not in wanted):
+                    continue
+                row = _work_line_out(w)
+                if not row:
+                    continue
+                bucket = out.setdefault(oid, [])
+                if not any(x.get("name") == row["name"] for x in bucket):
+                    bucket.append(row)
+
+        if contact_id:
+            for page in range(1, 41):
+                try:
+                    rows = _as_list(
+                        self.call(
+                            "work/get_filtered",
+                            {"FILTER": {"CONTACT_ID": int(contact_id)}, "PAGE": page, "LIMIT": 50},
+                        )
+                    )
+                except StoCrmError:
+                    break
+                ingest(rows)
+                if not rows or len(rows) < 50:
+                    break
+        if wanted:
+            for oid in sorted(wanted):
+                if oid in out and out[oid]:
+                    continue
+                try:
+                    extra = _as_list(
+                        self.call("work/get_filtered", {"FILTER": {"OFFER_ID": oid}, "PAGE": 1, "LIMIT": 50})
+                    )
+                except StoCrmError:
+                    extra = []
+                ingest(extra)
+        return {oid: out[oid] for oid in sorted(out.keys()) if not wanted or oid in wanted}
+
+    def materials_rows_index(self, offer_ids: list[int] | None = None) -> dict[int, list[dict[str, Any]]]:
         wanted = {int(x) for x in (offer_ids or []) if x}
         if not wanted:
             return {}
-        out: dict[int, list[str]] = {}
+        out: dict[int, list[dict[str, Any]]] = {}
         for oid in sorted(wanted):
             rows: list[dict[str, Any]] = []
             for method in ("material/get_filtered", "product/get_filtered", "spare/get_filtered"):
@@ -440,16 +570,9 @@ class StoCrm:
                 if rows:
                     break
             for r in rows:
-                name = str(
-                    r.get("NAME")
-                    or r.get("TITLE")
-                    or r.get("PRODUCT_NAME")
-                    or r.get("MATERIAL_NAME")
-                    or r.get("DESCRIPTION")
-                    or ""
-                ).strip()
-                if name:
-                    out.setdefault(oid, []).append(name[:160])
+                row = _material_line_out(r)
+                if row:
+                    out.setdefault(oid, []).append(row)
         return out
 
 

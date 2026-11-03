@@ -107,6 +107,45 @@ class ServiceItem {
   final String icon;
 }
 
+class VisitLineItem {
+  const VisitLineItem({
+    required this.name,
+    this.qty,
+    this.unit,
+    this.price,
+    this.sum,
+    this.meta,
+  });
+
+  final String name;
+  final double? qty;
+  final String? unit;
+  final double? price;
+  final double? sum;
+  final String? meta;
+
+  static VisitLineItem? fromMap(dynamic raw) {
+    if (raw is! Map) return null;
+    final m = Map<String, dynamic>.from(raw);
+    final name = '${m['name'] ?? ''}'.trim();
+    if (name.isEmpty) return null;
+    double? numField(String key) {
+      final v = m[key];
+      if (v == null) return null;
+      return double.tryParse('$v'.replaceAll(',', '.').replaceAll(' ', ''));
+    }
+
+    return VisitLineItem(
+      name: name,
+      qty: numField('qty'),
+      unit: m['unit']?.toString(),
+      price: numField('price'),
+      sum: numField('sum'),
+      meta: m['meta']?.toString(),
+    );
+  }
+}
+
 class Visit {
   Visit({
     required this.id,
@@ -119,6 +158,8 @@ class Visit {
     this.mileage,
     this.works = const [],
     this.parts = const [],
+    this.workLines = const [],
+    this.partLines = const [],
     this.statusId,
     this.stage = '',
     this.isReady = false,
@@ -140,6 +181,8 @@ class Visit {
   final int? mileage;
   final List<String> works;
   final List<String> parts;
+  final List<VisitLineItem> workLines;
+  final List<VisitLineItem> partLines;
   final int? statusId;
   final String stage;
   final bool isReady;
@@ -151,6 +194,8 @@ class Visit {
   Visit copyWith({
     List<String>? works,
     List<String>? parts,
+    List<VisitLineItem>? workLines,
+    List<VisitLineItem>? partLines,
     int? amount,
     String? serviceTitle,
   }) {
@@ -166,6 +211,8 @@ class Visit {
       mileage: mileage,
       works: works ?? this.works,
       parts: parts ?? this.parts,
+      workLines: workLines ?? this.workLines,
+      partLines: partLines ?? this.partLines,
       statusId: statusId,
       stage: stage,
       isReady: isReady,
@@ -898,6 +945,27 @@ class MockStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<VisitLineItem> _parseLineItems(Map<String, dynamic> m, String key, List<String> fallback) {
+    final raw = m[key];
+    if (raw is List && raw.isNotEmpty) {
+      final parsed = [for (final row in raw) VisitLineItem.fromMap(row)].whereType<VisitLineItem>().toList();
+      if (parsed.isNotEmpty) return parsed;
+    }
+    return [for (final s in fallback) VisitLineItem(name: s)];
+  }
+
+  String _visitTitle(String oid, List<String> works, List<String> parts) {
+    if (works.length == 1) {
+      final w = works.first.toLowerCase();
+      if (w.startsWith('сумма заказа') || w.startsWith('работы по сделке')) {
+        return 'Заказ-наряд № $oid';
+      }
+    }
+    if (works.isNotEmpty) return works.first;
+    if (parts.isNotEmpty) return parts.first;
+    return 'Сделка #$oid';
+  }
+
   Visit _visitFromMap(Map<String, dynamic> m, {String? fallbackId}) {
     final works = [
       if (m['works'] is List) for (final w in m['works'] as List) '$w',
@@ -907,9 +975,9 @@ class MockStore extends ChangeNotifier {
     ];
     final oid = '${m['id'] ?? fallbackId ?? ''}';
     final serviceBook = m['service_book'] == true || m['successful'] == true;
-    final title = works.isNotEmpty
-        ? works.first
-        : (parts.isNotEmpty ? parts.first : 'Сделка #$oid');
+    final workLines = _parseLineItems(m, 'work_lines', works);
+    final partLines = _parseLineItems(m, 'part_lines', parts);
+    final title = _visitTitle(oid, works, parts);
     return Visit(
       id: oid,
       serviceTitle: title,
@@ -922,6 +990,8 @@ class MockStore extends ChangeNotifier {
       mileage: int.tryParse('${m['car_mileage'] ?? m['mileage'] ?? ''}'),
       works: works,
       parts: parts,
+      workLines: workLines,
+      partLines: partLines,
       statusId: int.tryParse('${m['status_id'] ?? ''}'),
       stage: '${m['stage'] ?? ''}',
       isReady: m['is_ready'] == true,

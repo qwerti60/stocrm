@@ -290,7 +290,18 @@ def _merge_works_parts(
     return w, p
 
 
-def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[str] | None = None) -> dict[str, Any]:
+def _lines_from_strings(names: list[str] | None) -> list[dict[str, Any]]:
+    return [{"name": str(n).strip()} for n in (names or []) if str(n).strip()]
+
+
+def _offer_out(
+    o: dict[str, Any],
+    works: list[str] | None = None,
+    parts: list[str] | None = None,
+    *,
+    work_lines: list[dict[str, Any]] | None = None,
+    part_lines: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     status_id = int(o.get("OFFER_STATUS_ID") or 0)
     title = str(o.get("STATUS_NAME") or "")
     stage = _stage(status_id, title)
@@ -323,6 +334,8 @@ def _offer_out(o: dict[str, Any], works: list[str] | None = None, parts: list[st
         "calendar_to": o.get("CALENDAR_RECORD_DATE_TO"),
         "works": works or [],
         "parts": parts or [],
+        "work_lines": work_lines or [],
+        "part_lines": part_lines or [],
         "steps": _funnel_steps(status_id, title),
     }
 
@@ -892,8 +905,14 @@ def _visit_for_contact(contact_id: int, oid: int) -> dict[str, Any]:
     works_map = stocrm.works_index([oid], contact_id=contact_id)
     parts_map = stocrm.materials_index([oid])
     w, p = _merge_works_parts(found, works_map.get(oid, []), parts_map.get(oid, []))
+    wr = stocrm.works_rows_index([oid], contact_id=contact_id).get(oid) or []
+    pr = stocrm.materials_rows_index([oid]).get(oid) or []
+    if not wr:
+        wr = _lines_from_strings(w)
+    if not pr:
+        pr = _lines_from_strings(p)
     cars = _cars_index(contact_id)
-    return _enrich_offer(_offer_out(found, w, p), cars)
+    return _enrich_offer(_offer_out(found, w, p, work_lines=wr, part_lines=pr), cars)
 
 
 @app.get("/v1/visits/{oid}")
