@@ -170,15 +170,23 @@ class _ShellScreenState extends State<ShellScreen> {
     if (screen == null || screen.isEmpty) return;
     widget.store.clearPendingScreen();
     if (screen == 'garage') {
-      setState(() => _index = 3);
+      setState(() => _index = FitBottomBar.garageIndex);
     } else if (screen == 'book') {
-      setState(() => _index = FitBottomBar.bookIndex);
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookScreen(store: widget.store)));
     } else if (screen == 'branches') {
-      setState(() => _index = 1);
+      setState(() => _index = FitBottomBar.mapIndex);
     } else if (screen == 'chat') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: widget.store)));
+      setState(() => _index = FitBottomBar.chatIndex);
     } else if (screen == 'profile') {
-      setState(() => _index = 4);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            store: widget.store,
+            onOpenBranches: () => setState(() => _index = FitBottomBar.mapIndex),
+            onOpenBook: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookScreen(store: widget.store))),
+          ),
+        ),
+      );
     } else if (screen == 'status') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatusScreen(store: widget.store)));
     } else if (screen == 'recommendations') {
@@ -191,43 +199,49 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
+    void openBook() {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookScreen(store: store)));
+    }
+
+    void openProfile() {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            store: store,
+            onOpenBranches: () => setState(() => _index = FitBottomBar.mapIndex),
+            onOpenBook: openBook,
+          ),
+        ),
+      );
+    }
+
     final pages = [
       HomeScreen(
         store: store,
-        onOpenBook: () => setState(() => _index = FitBottomBar.bookIndex),
-        onOpenProfile: () => setState(() => _index = 4),
-        onOpenGarage: () => setState(() => _index = 3),
-        onOpenBranches: () => setState(() => _index = 1),
+        onOpenBook: openBook,
+        onOpenProfile: openProfile,
+        onOpenGarage: () => setState(() => _index = FitBottomBar.garageIndex),
+        onOpenBranches: () => setState(() => _index = FitBottomBar.mapIndex),
         onOpenChat: () {
           store.markChatRead();
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(store: store)));
+          setState(() => _index = FitBottomBar.chatIndex);
         },
       ),
-      BranchesScreen(store: store),
-      BookScreen(store: store),
       GarageScreen(store: store),
-      ProfileScreen(
-        store: store,
-        onOpenBranches: () => setState(() => _index = 1),
-        onOpenBook: () => setState(() => _index = FitBottomBar.bookIndex),
-      ),
+      BranchesScreen(store: store),
+      RecommendationsScreen(store: store),
+      ChatScreen(store: store),
     ];
 
-    final profileBadge = store.unreadChat + store.unreadNotes.where((n) => n.kind == 'chat' || n.kind == 'push').length;
-
     final shell = Scaffold(
-      extendBody: true,
       body: IndexedStack(index: _index, children: pages),
-      floatingActionButton: FitBookFab(
-        active: _index == FitBottomBar.bookIndex,
-        onPressed: () => setState(() => _index = FitBottomBar.bookIndex),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: FitBottomBar(
         index: _index,
-        profileBadge: profileBadge,
-        onBook: () => setState(() => _index = FitBottomBar.bookIndex),
-        onSelect: (i) => setState(() => _index = i),
+        chatBadge: store.unreadChat,
+        onSelect: (i) {
+          if (i == FitBottomBar.chatIndex) store.markChatRead();
+          setState(() => _index = i);
+        },
       ),
     );
 

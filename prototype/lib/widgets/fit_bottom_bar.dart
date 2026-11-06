@@ -1,88 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 
-/// Нижняя панель как в FIT SERVICE: 4 вкладки + центральная «Запись».
+/// Нижнее меню как в FIT SERVICE: 5 равных вкладок.
 class FitBottomBar extends StatelessWidget {
   const FitBottomBar({
     super.key,
     required this.index,
     required this.onSelect,
-    required this.onBook,
-    this.profileBadge = 0,
+    this.chatBadge = 0,
   });
 
   final int index;
   final ValueChanged<int> onSelect;
-  final VoidCallback onBook;
-  final int profileBadge;
+  final int chatBadge;
 
-  static const bookIndex = 2;
+  static const homeIndex = 0;
+  static const garageIndex = 1;
+  static const mapIndex = 2;
+  static const recommendationsIndex = 3;
+  static const chatIndex = 4;
 
   @override
   Widget build(BuildContext context) {
-    return BottomAppBar(
-      height: 62,
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
-      color: vagCard,
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black26,
-      elevation: 12,
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 7,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _Item(
-            label: 'Главная',
-            icon: Icons.home_outlined,
-            selectedIcon: Icons.home,
-            selected: index == 0,
-            onTap: () => onSelect(0),
-          ),
-          _Item(
-            label: 'Карта',
-            icon: Icons.map_outlined,
-            selectedIcon: Icons.map,
-            selected: index == 1,
-            onTap: () => onSelect(1),
-          ),
-          const SizedBox(width: 52),
-          _Item(
-            label: 'Гараж',
-            icon: Icons.directions_car_outlined,
-            selectedIcon: Icons.directions_car,
-            selected: index == 3,
-            onTap: () => onSelect(3),
-          ),
-          _Item(
-            label: 'Ещё',
-            icon: Icons.person_outline,
-            selectedIcon: Icons.person,
-            selected: index == 4,
-            badge: profileBadge,
-            onTap: () => onSelect(4),
-          ),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        color: vagCard,
+        border: Border(top: BorderSide(color: vagBorder.withValues(alpha: 0.9))),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -2))],
       ),
-    );
-  }
-}
-
-class FitBookFab extends StatelessWidget {
-  const FitBookFab({super.key, required this.active, required this.onPressed});
-
-  final bool active;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FloatingActionButton.extended(
-      onPressed: onPressed,
-      elevation: active ? 8 : 4,
-      backgroundColor: active ? vagRed : vagInk,
-      foregroundColor: Colors.white,
-      icon: const Icon(Icons.event_available),
-      label: const Text('Запись', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _Item(
+                label: 'Главная',
+                icon: Icons.home_outlined,
+                selectedIcon: Icons.home,
+                selected: index == homeIndex,
+                onTap: () => onSelect(homeIndex),
+              ),
+              _Item(
+                label: 'Гараж',
+                icon: Icons.directions_car_outlined,
+                selectedIcon: Icons.directions_car,
+                selected: index == garageIndex,
+                onTap: () => onSelect(garageIndex),
+              ),
+              _Item(
+                label: 'Карта',
+                icon: Icons.location_on_outlined,
+                selectedIcon: Icons.location_on,
+                selected: index == mapIndex,
+                onTap: () => onSelect(mapIndex),
+              ),
+              _Item(
+                label: 'Рекомендации',
+                icon: Icons.build_outlined,
+                selectedIcon: Icons.build,
+                selected: index == recommendationsIndex,
+                onTap: () => onSelect(recommendationsIndex),
+              ),
+              _Item(
+                label: 'Чаты',
+                icon: Icons.chat_bubble_outline,
+                selectedIcon: Icons.chat_bubble,
+                selected: index == chatIndex,
+                badge: chatBadge,
+                onTap: () => onSelect(chatIndex),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -106,8 +98,8 @@ class _Item extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? vagRed : vagMutedInk;
-    Widget iconWidget = Icon(selected ? selectedIcon : icon, color: color, size: 24);
+    final color = selected ? vagInk : vagMutedInk;
+    Widget iconWidget = Icon(selected ? selectedIcon : icon, color: color, size: 22);
     if (badge > 0) {
       iconWidget = Badge(
         label: Text('$badge'),
@@ -115,19 +107,19 @@ class _Item extends StatelessWidget {
         child: iconWidget,
       );
     }
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             iconWidget,
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(fontSize: 10, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 9, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: color),
             ),
           ],
         ),
