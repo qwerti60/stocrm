@@ -561,7 +561,6 @@ class MockStore extends ChangeNotifier {
   void finishShorts() {
     shortsDone = true;
     notifyListeners();
-    _persist();
   }
 
   void sendVinRequest(String vin, String part) {
@@ -1194,7 +1193,7 @@ class MockStore extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     final p = await SharedPreferences.getInstance();
-    shortsDone = p.getBool('shortsDone') ?? false;
+    shortsDone = false;
     lastChatRead = p.getInt('lastChatRead') ?? 0;
     final token = p.getString('token');
     if (token == null || token.isEmpty) {
@@ -1239,7 +1238,6 @@ class MockStore extends ChangeNotifier {
 
   Future<void> _persist() async {
     final p = await SharedPreferences.getInstance();
-    await p.setBool('shortsDone', shortsDone);
     await p.setInt('lastChatRead', lastChatRead);
     if (api.token != null) {
       await p.setString('token', api.token!);
