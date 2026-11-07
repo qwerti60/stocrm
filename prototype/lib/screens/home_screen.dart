@@ -32,8 +32,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? _shownAlert;
-  final PageController _hero = PageController();
-  int _heroPage = 0;
 
   @override
   void initState() {
@@ -48,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     widget.store.removeListener(_onStore);
-    _hero.dispose();
     super.dispose();
   }
 
@@ -139,13 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: vagSurface,
       body: Column(
         children: [
-          _HeroBlock(
-            controller: _hero,
-            page: _heroPage,
+          _HomeTopBar(
             unread: unread,
             onCity: widget.onOpenBranches,
             onNotes: _openNotes,
-            onPage: (i) => setState(() => _heroPage = i),
           ),
           Expanded(
             child: ListView(
@@ -516,61 +510,20 @@ class _ServicesCarousel extends StatelessWidget {
   }
 }
 
-class _HeroBlock extends StatelessWidget {
-  const _HeroBlock({
-    required this.controller,
-    required this.page,
+class _HomeTopBar extends StatelessWidget {
+  const _HomeTopBar({
     required this.unread,
     required this.onCity,
     required this.onNotes,
-    required this.onPage,
   });
 
-  final PageController controller;
-  final int page;
   final int unread;
   final VoidCallback onCity;
   final VoidCallback onNotes;
-  final ValueChanged<int> onPage;
-
-  static const _slides = [
-    (
-      title: 'ПОЛНЫЙ КОНТРОЛЬ\nНАД ВАШИМ ',
-      accent: 'VAG',
-      sub: 'Профессиональный сервис, оригинальные запчасти и честные цены.',
-      image: 'assets/hero-car.png',
-      tags: true,
-    ),
-    (
-      title: 'КОМПЛЕКСНАЯ\n',
-      accent: 'ДИАГНОСТИКА',
-      sub: 'Бесплатно при записи на сервис.',
-      image: 'assets/diag-car.png',
-      tags: false,
-    ),
-    (
-      title: 'ИСТОРИЯ РЕМОНТА\nВ ',
-      accent: 'СЕРВИСБУКЕ',
-      sub: 'Заказ-наряды и PDF всегда под рукой.',
-      image: 'assets/hero-car.png',
-      tags: false,
-    ),
-  ];
-
-  static ({double pad, double sliderH, double headline, bool wide}) _metrics(BuildContext context) {
-    final w = MediaQuery.sizeOf(context).width;
-    final wide = w >= 520;
-    return (
-      pad: wide ? 24.0 : 16.0,
-      sliderH: wide ? 248.0 : 220.0,
-      headline: wide ? 20.0 : 17.0,
-      wide: wide,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final m = _metrics(context);
+    final pad = MediaQuery.sizeOf(context).width >= 520 ? 24.0 : 16.0;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Color(0xFF1A1014), vagBlack], begin: Alignment.topCenter, end: Alignment.bottomCenter),
@@ -578,189 +531,66 @@ class _HeroBlock extends StatelessWidget {
       width: double.infinity,
       child: SafeArea(
         bottom: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(m.pad, 4, m.pad, 0),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        VagWordmark(size: 22, onDark: true),
-                        SizedBox(height: 4),
-                        Text(
-                          'СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG',
-                          style: TextStyle(color: Color(0xFFB0B0B5), fontSize: 8, letterSpacing: 0.6, fontWeight: FontWeight.w600),
-                        ),
-                      ],
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(pad, 4, pad, 12),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    VagWordmark(size: 22, onDark: true),
+                    SizedBox(height: 4),
+                    Text(
+                      'СЕРВИС · ЗАПЧАСТИ · ЗАБОТА О VAG',
+                      style: TextStyle(color: Color(0xFFB0B0B5), fontSize: 8, letterSpacing: 0.6, fontWeight: FontWeight.w600),
                     ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: onCity,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.location_on, size: 14, color: vagRed),
+                      SizedBox(width: 4),
+                      Text('Тюмень', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                      Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.white70),
+                    ],
                   ),
-                  GestureDetector(
-                    onTap: onCity,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.location_on, size: 14, color: vagRed),
-                          SizedBox(width: 4),
-                          Text('Тюмень', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
-                          Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.white70),
-                        ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onNotes,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(18)),
+                      child: const Icon(Icons.notifications_none, size: 20, color: Colors.white),
+                    ),
+                    if (unread > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: CircleAvatar(
+                          radius: 8,
+                          backgroundColor: vagRed,
+                          child: Text('$unread', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onNotes,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(18)),
-                          child: const Icon(Icons.notifications_none, size: 20, color: Colors.white),
-                        ),
-                        if (unread > 0)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: CircleAvatar(
-                              radius: 8,
-                              backgroundColor: vagRed,
-                              child: Text('$unread', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(
-              height: m.sliderH,
-              child: PageView.builder(
-                controller: controller,
-                itemCount: _slides.length,
-                onPageChanged: onPage,
-                itemBuilder: (_, i) {
-                  final s = _slides[i];
-                  return Padding(
-                    padding: EdgeInsets.fromLTRB(m.pad, 8, m.pad, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RichText(
-                          text: TextSpan(
-                            style: vagHeroHeadline.copyWith(fontSize: m.headline, height: 1.12),
-                            children: [
-                              TextSpan(text: s.title),
-                              TextSpan(text: s.accent, style: const TextStyle(color: vagRed)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          s.sub,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: vagHeroSub.copyWith(color: Colors.white.withValues(alpha: 0.78), fontSize: 12, height: 1.35),
-                        ),
-                        if (s.tags) ...[
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: const [
-                              _HeroChip(label: 'Диагностика', icon: Icons.medical_services_outlined),
-                              _HeroChip(label: 'Запчасти', icon: Icons.settings_outlined),
-                              _HeroChip(label: 'Сервис', icon: Icons.build_outlined),
-                              _HeroChip(label: 'ТО', icon: Icons.fact_check_outlined),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 10),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: ColoredBox(
-                              color: const Color(0xFF252528),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                child: Image.asset(s.image, fit: BoxFit.contain, alignment: Alignment.bottomCenter),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(m.pad, 0, m.pad, m.wide ? 12 : 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    '${(page + 1).toString().padLeft(2, '0')} / ${_slides.length.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(width: 8),
-                  ...List.generate(_slides.length, (i) {
-                    final on = i == page;
-                    return Container(
-                      width: on ? 16 : 6,
-                      height: 6,
-                      margin: const EdgeInsets.only(left: 4),
-                      decoration: BoxDecoration(color: on ? vagRed : Colors.white24, borderRadius: BorderRadius.circular(99)),
-                    );
-                  }),
-                  IconButton(
-                    onPressed: () {
-                      final next = (page + 1) % _slides.length;
-                      controller.animateToPage(next, duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
-                    },
-                    icon: const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({required this.label, required this.icon});
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: vagRed),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
-        ],
       ),
     );
   }
