@@ -15,6 +15,7 @@ import 'package:stocrm_mobile_app/screens/garage_screen.dart';
 import 'package:stocrm_mobile_app/screens/home_screen.dart';
 import 'package:stocrm_mobile_app/screens/profile_screen.dart';
 import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
+import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/widgets/app_top_bar.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/vin_screen.dart';
@@ -145,6 +146,9 @@ class _RootScreenState extends State<RootScreen> {
           ),
         ),
       );
+    }
+    if (!store.shortsDone) {
+      return ShortsScreen(onDone: store.finishShorts);
     }
     if (!store.loggedIn) return AuthScreen(store: store);
     return ShellScreen(store: store);
