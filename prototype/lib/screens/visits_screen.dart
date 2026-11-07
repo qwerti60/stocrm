@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class VisitsScreen extends StatefulWidget {
   const VisitsScreen({super.key, required this.store});
@@ -44,8 +45,9 @@ class _VisitsScreenState extends State<VisitsScreen> {
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM yyyy, HH:mm', 'ru');
     final history = widget.store.history.where(_match).toList();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Электронный сервисбук', style: TextStyle(fontWeight: FontWeight.w800))),
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'Электронный сервисбук',
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
@@ -169,8 +171,9 @@ class _WorkOrderScreenState extends State<WorkOrderScreen> {
     final worksTotal = _sectionSum(works);
     final partsTotal = _sectionSum(parts);
 
-    return Scaffold(
-      appBar: AppBar(title: Text('Сделка #${v.id}')),
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'Сделка #${v.id}',
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [

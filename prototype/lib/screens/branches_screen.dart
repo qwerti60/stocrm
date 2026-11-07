@@ -4,11 +4,14 @@ import 'package:latlong2/latlong.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/shell_page_title.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class BranchesScreen extends StatefulWidget {
-  const BranchesScreen({super.key, required this.store});
+  const BranchesScreen({super.key, required this.store, this.inShell = true});
   final MockStore store;
+  final bool inShell;
 
   @override
   State<BranchesScreen> createState() => _BranchesScreenState();
@@ -87,23 +90,22 @@ class _BranchesScreenState extends State<BranchesScreen> {
     }).toList();
     final points = branches.where((b) => b.hasPoint).toList();
     final selected = branches.where((b) => b.id == selectedId).firstOrNull;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('СТО на карте', style: TextStyle(fontWeight: FontWeight.w800)),
-        actions: [
-          TextButton.icon(
-            onPressed: locating ? null : _nearest,
-            icon: locating
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.near_me, color: vagRed),
-            label: const Text('Ближайший', style: TextStyle(color: vagRed, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-      body: Column(
+    final nearestAction = TextButton.icon(
+      onPressed: locating ? null : _nearest,
+      icon: locating
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.near_me, color: vagRed),
+      label: const Text('Ближайший', style: TextStyle(color: vagRed, fontWeight: FontWeight.w700)),
+    );
+    final body = Column(
         children: [
+          if (widget.inShell)
+            ShellPageTitle(
+              title: 'СТО на карте',
+              trailing: nearestAction,
+            ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск филиала'),
               onChanged: (v) => setState(() => q = v),
@@ -190,7 +192,15 @@ class _BranchesScreenState extends State<BranchesScreen> {
             ),
           ),
         ],
-      ),
+      );
+    if (widget.inShell) {
+      return Scaffold(backgroundColor: vagSurface, body: body);
+    }
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'СТО на карте',
+      actions: [nearestAction],
+      body: body,
     );
   }
 

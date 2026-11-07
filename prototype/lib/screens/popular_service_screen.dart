@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class PopularServiceScreen extends StatelessWidget {
   const PopularServiceScreen({super.key, required this.store, required this.service});
@@ -10,8 +11,9 @@ class PopularServiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(service.title, style: const TextStyle(fontWeight: FontWeight.w800))),
+    return AppPageScaffold(
+      store: store,
+      title: service.title,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

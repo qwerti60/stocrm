@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:stocrm_mobile_app/ticket_ui.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class VinScreen extends StatefulWidget {
   const VinScreen({super.key, required this.store});
@@ -53,17 +54,16 @@ class _VinScreenState extends State<VinScreen> {
     final vinTickets = widget.store.tickets.where((t) => t.kind == 'vin').toList();
     final bookTickets = widget.store.tickets.where((t) => t.kind == 'book').toList();
     final open = widget.store.openTicketCount;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Подбор запчастей по VIN'),
-        actions: [
-          if (open > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(child: CircleAvatar(radius: 12, backgroundColor: vagRed, child: Text('$open', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))),
-            ),
-        ],
-      ),
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'Подбор запчастей по VIN',
+      actions: [
+        if (open > 0)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(child: CircleAvatar(radius: 12, backgroundColor: vagRed, child: Text('$open', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))),
+          ),
+      ],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

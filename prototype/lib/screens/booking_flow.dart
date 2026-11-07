@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class BookingFlow extends StatefulWidget {
   const BookingFlow({super.key, required this.store, this.initialService, this.initialBranch, this.initialComment});
@@ -161,10 +162,13 @@ class _BookingFlowState extends State<BookingFlow> {
   @override
   Widget build(BuildContext context) {
     final titles = ['Авто', 'Филиал', 'Время', 'Подтверждение'];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Запись · ${titles[step]}'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: back),
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'Запись · ${titles[step]}',
+      showBack: false,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: vagInk),
+        onPressed: back,
       ),
       body: Column(
         children: [

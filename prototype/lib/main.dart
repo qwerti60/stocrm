@@ -15,7 +15,7 @@ import 'package:stocrm_mobile_app/screens/garage_screen.dart';
 import 'package:stocrm_mobile_app/screens/home_screen.dart';
 import 'package:stocrm_mobile_app/screens/profile_screen.dart';
 import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
-import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
+import 'package:stocrm_mobile_app/widgets/app_top_bar.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/vin_screen.dart';
 import 'package:stocrm_mobile_app/app_badge.dart';
@@ -132,10 +132,19 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     if (booting) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: vagRed)));
-    }
-    if (!store.shortsDone) {
-      return ShortsScreen(onDone: store.finishShorts);
+      return const Scaffold(
+        backgroundColor: vagBlack,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              VagWordmark(size: 44, onDark: true),
+              SizedBox(height: 28),
+              CircularProgressIndicator(color: vagRed, strokeWidth: 2.5),
+            ],
+          ),
+        ),
+      );
     }
     if (!store.loggedIn) return AuthScreen(store: store);
     return ShellScreen(store: store);
@@ -162,7 +171,18 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    widget.store.addListener(_onStore);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openPending());
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onStore);
+    super.dispose();
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
   }
 
   void _openPending() {
@@ -228,13 +248,24 @@ class _ShellScreenState extends State<ShellScreen> {
         },
       ),
       GarageScreen(store: store),
-      BranchesScreen(store: store),
-      RecommendationsScreen(store: store),
-      ChatScreen(store: store),
+      BranchesScreen(store: store, inShell: true),
+      RecommendationsScreen(store: store, inShell: true),
+      ChatScreen(store: store, inShell: true),
     ];
 
+    final unread = store.unreadNotes.length;
     final shell = Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      backgroundColor: vagSurface,
+      body: Column(
+        children: [
+          AppTopBar(
+            unread: unread,
+            onCity: () => setState(() => _index = FitBottomBar.mapIndex),
+            onNotes: () => showAppNotificationsSheet(context, store),
+          ),
+          Expanded(child: IndexedStack(index: _index, children: pages)),
+        ],
+      ),
       bottomNavigationBar: FitBottomBar(
         index: _index,
         chatBadge: store.unreadChat,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class StatusScreen extends StatelessWidget {
   const StatusScreen({super.key, required this.store, this.visit});
@@ -14,8 +15,9 @@ class StatusScreen extends StatelessWidget {
     final ready = store.visits.where((v) => v.isReady);
     final current = visit ?? (ready.isEmpty ? store.nextVisit : ready.first);
     final steps = (current?.steps.isNotEmpty == true) ? current!.steps : store.repairSteps;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Статус автомобиля')),
+    return AppPageScaffold(
+      store: store,
+      title: 'Статус автомобиля',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

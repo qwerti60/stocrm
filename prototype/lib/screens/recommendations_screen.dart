@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/shell_page_title.dart';
 
 class RecommendationsScreen extends StatelessWidget {
-  const RecommendationsScreen({super.key, required this.store, this.filterCar});
+  const RecommendationsScreen({super.key, required this.store, this.filterCar, this.inShell = false});
   final MockStore store;
   final Vehicle? filterCar;
+  final bool inShell;
 
   @override
   Widget build(BuildContext context) {
@@ -16,11 +19,10 @@ class RecommendationsScreen extends StatelessWidget {
       final key = r.car.isEmpty ? 'Авто не указано' : '${r.car}${r.plate.isNotEmpty ? ' · ${r.plate}' : ''}';
       grouped.putIfAbsent(key, () => []).add(r);
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Рекомендации по ремонту', style: TextStyle(fontWeight: FontWeight.w800))),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    final listBody = ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
+          if (inShell) const ShellPageTitle(title: 'Рекомендации по ремонту'),
           const Text('Рекомендации привязаны к автомобилю. Лампа на главной горит, пока есть активные.', style: TextStyle(color: vagMuted)),
           const SizedBox(height: 12),
           if (list.isEmpty)
@@ -54,7 +56,13 @@ class RecommendationsScreen extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
+      );
+    if (inShell) {
+      return Scaffold(backgroundColor: vagSurface, body: listBody);
+    }
+    final title = filterCar == null
+        ? 'Рекомендации по ремонту'
+        : 'Рекомендации · ${filterCar!.make} ${filterCar!.model}';
+    return AppPageScaffold(store: store, title: title, body: listBody);
   }
 }

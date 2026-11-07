@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/shell_page_title.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.store});
+  const ChatScreen({super.key, required this.store, this.inShell = false});
   final MockStore store;
+  final bool inShell;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -52,10 +55,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final staff = widget.store.staffName;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Чат с менеджером')),
-      body: Column(
+    final chatBody = Column(
         children: [
+          if (widget.inShell) const ShellPageTitle(title: 'Чат с менеджером'),
           Expanded(
             child: widget.store.chat.isEmpty
                 ? const Center(child: Text('Напишите менеджеру — ответ придёт сюда', style: TextStyle(color: vagMutedInk)))
@@ -107,7 +109,14 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
-      ),
+      );
+    if (widget.inShell) {
+      return Scaffold(backgroundColor: vagSurface, body: chatBody);
+    }
+    return AppPageScaffold(
+      store: widget.store,
+      title: 'Чат с менеджером',
+      body: chatBody,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
 
 class BookScreen extends StatefulWidget {
   const BookScreen({super.key, required this.store});
@@ -21,8 +22,9 @@ class _BookScreenState extends State<BookScreen> {
       if (q.isEmpty) return true;
       return '${s.title} ${s.subtitle}'.toLowerCase().contains(q.toLowerCase());
     }).toList();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Запись', style: TextStyle(fontWeight: FontWeight.w800))),
+    return AppPageScaffold(
+      store: store,
+      title: 'Запись',
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [

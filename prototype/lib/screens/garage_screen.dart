@@ -6,6 +6,8 @@ import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/status_screen.dart';
 import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/theme.dart';
+import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/shell_page_title.dart';
 
 class GarageScreen extends StatefulWidget {
   const GarageScreen({super.key, required this.store});
@@ -44,13 +46,14 @@ class _GarageScreenState extends State<GarageScreen> {
       return s.contains(q.toLowerCase());
     }).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Гараж', style: TextStyle(fontWeight: FontWeight.w800)),
-        actions: [IconButton(onPressed: () => _addCar(context), icon: const Icon(Icons.add, color: vagRed))],
-      ),
+      backgroundColor: vagSurface,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
         children: [
+          ShellPageTitle(
+            title: 'Гараж',
+            trailing: IconButton(onPressed: () => _addCar(context), icon: const Icon(Icons.add, color: vagRed)),
+          ),
           TextField(
             decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск по авто, номеру, VIN'),
             onChanged: (v) => setState(() => q = v),
@@ -254,8 +257,9 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
     final car = widget.car;
     final history = store.visitsForCar(car);
     final recs = store.recommendationsForCar(car);
-    return Scaffold(
-      appBar: AppBar(title: Text('${car.make} ${car.model}')),
+    return AppPageScaffold(
+      store: store,
+      title: '${car.make} ${car.model}',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
