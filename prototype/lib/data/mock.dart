@@ -301,11 +301,18 @@ class AppTicket {
 }
 
 class Promo {
-  Promo({required this.title, required this.subtitle, required this.badge, this.imageUrl});
+  Promo({
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    this.imageUrl,
+    this.serviceId = '',
+  });
   final String title;
   final String subtitle;
   final String badge;
   final String? imageUrl;
+  final String serviceId;
 }
 
 class ChatMessage {
@@ -472,7 +479,7 @@ class MockStore extends ChangeNotifier {
   ];
 
   List<Promo> promos = [
-    Promo(title: 'Замена масла', subtitle: 'Масло + фильтр + работа', badge: 'от 4 990 ₽'),
+    Promo(title: 'Замена масла', subtitle: 'Масло + фильтр + работа', badge: 'от 4 990 ₽', serviceId: 'oil'),
     Promo(title: 'Тормозные колодки', subtitle: '', badge: 'от 6 900 ₽'),
     Promo(title: 'Замена ГРМ', subtitle: '', badge: 'от 14 900 ₽'),
   ];
@@ -1108,6 +1115,7 @@ class MockStore extends ChangeNotifier {
           title: title,
           subtitle: '${item['subtitle'] ?? item['body'] ?? ''}',
           badge: '${item['badge'] ?? 'Акция'}',
+          serviceId: '${item['service_id'] ?? ''}',
           imageUrl: () {
             final raw = '${item['image_url'] ?? ''}';
             if (raw.isEmpty) return null;

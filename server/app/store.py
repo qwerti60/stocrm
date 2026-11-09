@@ -43,6 +43,7 @@ DEFAULT_PROMOS = [
         "badge": "Акция",
         "pinned": True,
         "kind": "promo",
+        "service_id": "oil",
     },
     {
         "id": "seed-diag",
@@ -51,6 +52,7 @@ DEFAULT_PROMOS = [
         "badge": "В приложении",
         "pinned": True,
         "kind": "promo",
+        "service_id": "diag",
     },
     {
         "id": "seed-tires",
@@ -59,6 +61,7 @@ DEFAULT_PROMOS = [
         "badge": "Акция",
         "pinned": True,
         "kind": "promo",
+        "service_id": "",
     },
 ]
 
@@ -848,6 +851,7 @@ def add_campaign(
     pin: bool = False,
     kind: str = "push",
     image: str = "",
+    service_id: str = "",
 ) -> dict[str, Any]:
     row = {
         "id": uuid.uuid4().hex[:10],
@@ -862,6 +866,7 @@ def add_campaign(
         "sent": 0,
         "kind": (kind or "push").strip() or "push",
         "image": (image or "").strip(),
+        "service_id": (service_id or "").strip(),
     }
     with _LOCK:
         data = _load()
@@ -925,6 +930,7 @@ def update_promo(
     title: str,
     body: str = "",
     badge: str = "Акция",
+    service_id: str = "",
 ) -> dict[str, Any]:
     pid = (pid or "").strip()
     if not pid:
@@ -943,6 +949,7 @@ def update_promo(
                 row["body"] = subtitle or title
                 row["subtitle"] = subtitle
                 row["badge"] = badge
+                row["service_id"] = (service_id or "").strip()
                 row["updated"] = int(time.time())
                 _save(data)
                 return dict(row)
@@ -955,6 +962,7 @@ def update_promo(
             "body": subtitle or title,
             "subtitle": subtitle,
             "badge": badge,
+            "service_id": (service_id or "").strip(),
             "pinned": True,
             "kind": "promo",
             "updated": int(time.time()),

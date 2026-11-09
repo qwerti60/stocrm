@@ -1239,6 +1239,7 @@ def promos_get() -> dict[str, Any]:
     for c in list_promos():
         row = dict(c)
         pid = str(row.get("id") or "")
+        row.setdefault("service_id", row.get("service_id") or "")
         if pid and promo_image_path(pid):
             row["image_url"] = f"/v1/promos/{pid}/image"
         items.append(row)
@@ -1606,6 +1607,7 @@ def _promo_admin_item(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     pid = str(out.get("id") or "")
     out.setdefault("subtitle", out.get("body") or "")
+    out.setdefault("service_id", out.get("service_id") or "")
     if pid and promo_image_path(pid):
         out["image_url"] = f"/v1/promos/{pid}/image"
     return out
@@ -1623,12 +1625,15 @@ async def admin_promos_post(
     title: str = Form(...),
     body: str = Form(""),
     badge: str = Form("Акция"),
+    service_id: str = Form(""),
     image: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
     require_admin(x_bff_secret)
     if not title.strip():
         raise HTTPException(400, "Нужен заголовок")
-    row = add_campaign(title=title, body=body or title, badge=badge, pin=True, kind="promo")
+    row = add_campaign(
+        title=title, body=body or title, badge=badge, pin=True, kind="promo", service_id=service_id
+    )
     if image and image.filename:
         data = await image.read()
         if data:
@@ -1644,13 +1649,14 @@ async def admin_promos_put(
     title: str = Form(...),
     body: str = Form(""),
     badge: str = Form("Акция"),
+    service_id: str = Form(""),
     image: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
     require_admin(x_bff_secret)
     if not title.strip():
         raise HTTPException(400, "Нужен заголовок")
     try:
-        row = update_promo(pid, title=title, body=body, badge=badge)
+        row = update_promo(pid, title=title, body=body, badge=badge, service_id=service_id)
     except KeyError:
         raise HTTPException(404, "Спецпредложение не найдено") from None
     except ValueError as e:

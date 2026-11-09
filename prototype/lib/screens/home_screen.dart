@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
+import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/screens/popular_service_screen.dart';
 import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/search_sheet.dart';
@@ -126,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 22),
             _HomeSectionTitle(title: 'Акции', onMore: widget.onOpenBook),
             const SizedBox(height: 10),
-            _PromoCarousel(store: store, onBook: widget.onOpenBook),
+            _PromoCarousel(store: store),
             const SizedBox(height: 22),
             _HomeSectionTitle(
               title: 'Сервисы',
@@ -343,10 +344,9 @@ class _HomeSectionTitle extends StatelessWidget {
 }
 
 class _PromoCarousel extends StatelessWidget {
-  const _PromoCarousel({required this.store, required this.onBook});
+  const _PromoCarousel({required this.store});
 
   final MockStore store;
-  final VoidCallback onBook;
 
   static const _colors = [vagRed, Color(0xFF1E3A5F), Color(0xFF5B8DEF)];
 
@@ -362,8 +362,9 @@ class _PromoCarousel extends StatelessWidget {
         itemBuilder: (_, i) {
           final p = items[i];
           final bg = _colors[i % _colors.length];
+          final hasImage = p.imageUrl != null && p.imageUrl!.isNotEmpty;
           return GestureDetector(
-            onTap: onBook,
+            onTap: () => _openPromoSheet(context, store, p),
             child: Container(
               width: 168,
               padding: const EdgeInsets.all(14),
@@ -371,6 +372,13 @@ class _PromoCarousel extends StatelessWidget {
                 color: bg,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [BoxShadow(color: bg.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 4))],
+                image: hasImage
+                    ? DecorationImage(
+                        image: NetworkImage(p.imageUrl!),
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.38), BlendMode.darken),
+                      )
+                    : null,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,6 +392,149 @@ class _PromoCarousel extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+PopularService? _promoService(MockStore store, Promo p) {
+  if (p.serviceId.isEmpty) return null;
+  for (final s in store.popularServices) {
+    if (s.id == p.serviceId) return s;
+  }
+  return null;
+}
+
+void _openPromoSheet(BuildContext context, MockStore store, Promo p) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: vagCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              child: AspectRatio(
+                aspectRatio: 1.12,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _PromoHero(promo: p, store: store),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black54,
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _bookFromPromo(context, store, p);
+                  },
+                  child: const Text('Записаться'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _bookFromPromo(BuildContext context, MockStore store, Promo p) {
+  final svc = _promoService(store, p);
+  ServiceItem? initial;
+  if (svc != null) {
+    final want = svc.title.toLowerCase();
+    for (final s in store.services) {
+      if (s.title.toLowerCase() == want) {
+        initial = s;
+        break;
+      }
+    }
+  }
+  final comment = svc != null
+      ? '${svc.title}. ${svc.description}'
+      : (p.subtitle.isEmpty ? p.title : '${p.title}. ${p.subtitle}');
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => BookingFlow(store: store, initialService: initial, initialComment: comment),
+    ),
+  );
+}
+
+class _PromoHero extends StatelessWidget {
+  const _PromoHero({required this.promo, required this.store});
+
+  final Promo promo;
+  final MockStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = _promoService(store, promo);
+    final url = promo.imageUrl;
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(svc),
+      );
+    }
+    return _fallback(svc);
+  }
+
+  Widget _fallback(PopularService? svc) {
+    final asset = svc?.image ?? '';
+    if (asset.isNotEmpty && !asset.startsWith('http')) {
+      return Image.asset(
+        asset,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    if (asset.startsWith('http')) {
+      return Image.network(
+        asset,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return ColoredBox(
+      color: vagRed,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: Text(
+            promo.title,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 22, height: 1.15),
+          ),
+        ),
       ),
     );
   }

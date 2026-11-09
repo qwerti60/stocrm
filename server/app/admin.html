@@ -127,7 +127,7 @@
       <div class="grid2">
         <div>
           <h2 id="pFormTitle">Новая карточка</h2>
-          <p class="muted">Мини-картинка как в блоке спецпредложений. Рассылка сюда не пишется.</p>
+          <p class="muted">Картинка откроется в приложении по нажатию на акцию. Привяжите услугу — клиент увидит одну кнопку «Записаться».</p>
           <input type="hidden" id="pId" />
           <label>Заголовок</label>
           <input id="pTitle" style="width:100%" placeholder="Замена масла" />
@@ -135,6 +135,10 @@
           <input id="pBody" style="width:100%" placeholder="от 4 990 ₽" />
           <label>Бейдж</label>
           <input id="pBadge" value="Акция" style="width:100%" />
+          <label>Услуга для записи</label>
+          <select id="pService" style="width:100%">
+            <option value="">— не привязана —</option>
+          </select>
           <label>Картинка</label>
           <input id="pImage" type="file" accept="image/*" style="width:100%" />
           <form onsubmit="savePromo(event)" style="margin-top:.8rem">
@@ -243,7 +247,7 @@
     </div>
   </div>
   <script>
-    const S = { key: sessionStorage.getItem("vm_admin") || "", thread: "", tab: "chat" };
+    const S = { key: sessionStorage.getItem("vm_admin") || "", thread: "", tab: "chat", promoServices: [] };
     async function api(path, opt = {}) {
       const r = await fetch(path, {
         ...opt,
@@ -391,16 +395,33 @@
         msg.textContent = err.message || "Ошибка";
       }
     }
+    async function fillPromoServices(selected) {
+      try {
+        const d = await api("/admin/api/popular-services");
+        S.promoServices = d.items || [];
+      } catch (_) {
+        S.promoServices = S.promoServices || [];
+      }
+      const sel = document.getElementById("pService");
+      const cur = selected !== undefined ? selected : sel.value;
+      sel.innerHTML = '<option value="">— не привязана —</option>' +
+        S.promoServices.map(x => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("");
+      sel.value = cur || "";
+    }
     async function loadPromos() {
+      await fillPromoServices();
       const d = await api("/admin/api/promos");
       document.getElementById("promoList").innerHTML = (d.items || []).map(x => {
         const thumb = x.image_url
           ? `<img src="${esc(x.image_url)}" alt="" style="max-width:120px;max-height:80px;border-radius:8px;margin:.35rem 0" />`
           : "";
+        const svc = (S.promoServices || []).find(s => String(s.id) === String(x.service_id || ""));
+        const linked = svc ? `<div class="muted">Запись: ${esc(svc.title)}</div>` : "";
         return `<div class="camp">
           ${thumb}
           <b>${esc(x.title)}</b> <span class="muted">${esc(x.badge || "")}</span>
           <div class="muted">${esc(x.subtitle || x.body || "")}${x.builtin ? " · шаблон" : ""}</div>
+          ${linked}
           <div class="row-btns">
             <button type="button" class="ghost" onclick='editPromo(${JSON.stringify(x)})'>Изменить</button>
             <button type="button" class="danger" onclick="removePromo(${JSON.stringify(String(x.id || ''))})">Удалить</button>
@@ -413,6 +434,7 @@
       document.getElementById("pTitle").value = "";
       document.getElementById("pBody").value = "";
       document.getElementById("pBadge").value = "Акция";
+      document.getElementById("pService").value = "";
       document.getElementById("pImage").value = "";
       document.getElementById("pFormTitle").textContent = "Новая карточка";
       document.getElementById("pSaveBtn").textContent = "Добавить на главную";
@@ -424,6 +446,7 @@
       document.getElementById("pTitle").value = x.title || "";
       document.getElementById("pBody").value = x.subtitle || x.body || "";
       document.getElementById("pBadge").value = x.badge || "Акция";
+      document.getElementById("pService").value = x.service_id || "";
       document.getElementById("pImage").value = "";
       document.getElementById("pFormTitle").textContent = "Редактировать карточку";
       document.getElementById("pSaveBtn").textContent = "Сохранить";
@@ -441,6 +464,7 @@
         fd.append("title", document.getElementById("pTitle").value);
         fd.append("body", document.getElementById("pBody").value);
         fd.append("badge", document.getElementById("pBadge").value);
+        fd.append("service_id", document.getElementById("pService").value);
         const img = document.getElementById("pImage").files[0];
         if (img) fd.append("image", img);
         const url = id ? "/admin/api/promos/" + encodeURIComponent(id) : "/admin/api/promos";
