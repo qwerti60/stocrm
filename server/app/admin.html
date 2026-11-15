@@ -14,12 +14,40 @@
     .tabs { display: flex; gap: .4rem; }
     .tabs button { background: var(--card); color: var(--txt); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .8rem; cursor: pointer; }
     .tabs button.on { background: var(--red); border-color: var(--red); }
-    .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 56px); }
-    @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
-    aside, main { padding: 1rem; }
-    aside { border-right: 1px solid var(--line); }
     .thread, .vin, .camp { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .7rem .8rem; margin-bottom: .5rem; cursor: pointer; }
-    .thread.on { border-color: var(--red); }
+    .thread.on { border-color: var(--red); background: #221014; }
+    .chat-shell { display: flex; height: calc(100vh - 56px); min-height: 420px; }
+    .chat-sidebar { width: 340px; min-width: 280px; max-width: 42vw; display: flex; flex-direction: column; background: #101014; border-right: 1px solid var(--line); }
+    .chat-sidebar-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+    .chat-sidebar-head h2 { margin: 0 0 10px; font-size: .72rem; }
+    .chat-sidebar-search input { width: 100%; border-radius: 20px; padding: .55rem .9rem; background: #1c1c20; }
+    .chat-thread-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .thread-item { display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; transition: background .15s; }
+    .thread-item:hover { background: #1a1a1f; }
+    .thread-item.on { background: #261015; border-color: rgba(225,6,19,.45); }
+    .thread-avatar { width: 42px; height: 42px; border-radius: 50%; background: #2a1014; color: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; font-size: .85rem; }
+    .thread-body { min-width: 0; flex: 1; }
+    .thread-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .thread-top b { font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .thread-time { font-size: .72rem; color: var(--muted); flex-shrink: 0; }
+    .thread-preview { color: var(--muted); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+    .thread-phone { color: #b8b8c0; font-size: .76rem; margin-top: 2px; }
+    .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+    .chat-main-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--muted); }
+    .chat-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+    .chat-header-back { display: none; background: transparent; border: 0; color: var(--txt); font-size: 1.2rem; cursor: pointer; padding: 0 .35rem 0 0; }
+    .chat-header-title { flex: 1; min-width: 0; }
+    .chat-header-title b { display: block; font-size: 1rem; }
+    .chat-header-title span { color: var(--muted); font-size: .82rem; }
+    .chat-log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .chat-compose { padding: 12px 16px 16px; border-top: 1px solid var(--line); background: var(--card); }
+    .chat-compose form { margin: 0; }
+    @media (max-width: 900px) {
+      .chat-shell.chat-open .chat-sidebar { display: none; }
+      .chat-shell:not(.chat-open) .chat-main { display: none; }
+      .chat-shell.chat-open .chat-header-back { display: inline; }
+      .chat-sidebar { width: 100%; max-width: none; }
+    }
     .muted { color: var(--muted); font-size: .82rem; }
     .msg { max-width: 520px; margin: .4rem 0; padding: .7rem .9rem; border-radius: 12px; }
     .staff { background: var(--card); }
@@ -31,9 +59,11 @@
     button { background: var(--red); color: #fff; border: 0; border-radius: 8px; padding: .6rem 1rem; font-weight: 700; cursor: pointer; }
     .gate { max-width: 360px; margin: 4rem auto; background: var(--card); padding: 1.4rem; border-radius: 12px; }
     h2 { font-size: .95rem; margin: 1.2rem 0 .5rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-    #log { min-height: 240px; }
+    #chatPane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    #chatPane[hidden] { display: none !important; }
     .pane { display: none; padding: 1rem 1.2rem 2rem; }
     .pane.on { display: block; }
+    #pane-chat.pane.on { padding: 0; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
     @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
     label { display: block; font-size: .8rem; color: var(--muted); margin: .5rem 0 .25rem; }
@@ -67,20 +97,38 @@
     <p class="muted" id="gateErr"></p>
   </div>
   <div id="shell" hidden>
-    <div class="wrap pane on" id="pane-chat">
-      <aside>
-        <h2>Диалоги</h2>
-        <div id="threads"></div>
-      </aside>
-      <main>
-        <div class="muted" id="head">Выберите диалог слева</div>
-        <div id="log"></div>
-        <form onsubmit="reply(event)" id="replyForm" hidden>
-          <input id="staff" value="Егор" style="width:120px" title="Имя, которое видит клиент" />
-          <input id="text" placeholder="Ответ клиенту…" style="flex:1" />
-          <button>Отправить</button>
-        </form>
-      </main>
+    <div class="pane on" id="pane-chat">
+      <div class="chat-shell" id="chatShell">
+        <aside class="chat-sidebar">
+          <div class="chat-sidebar-head">
+            <h2>Клиенты</h2>
+            <div class="chat-sidebar-search">
+              <input id="threadSearch" type="search" placeholder="Поиск по телефону или имени…" oninput="renderThreads()" />
+            </div>
+          </div>
+          <div class="chat-thread-list" id="threads"></div>
+        </aside>
+        <main class="chat-main" id="chatMain">
+          <div class="chat-main-empty" id="chatEmpty">Выберите диалог слева — как в Telegram</div>
+          <div id="chatPane" hidden>
+            <div class="chat-header">
+              <button type="button" class="chat-header-back" onclick="closeChatPane()" aria-label="К списку">←</button>
+              <div class="chat-header-title">
+                <b id="head">—</b>
+                <span id="headPhone">—</span>
+              </div>
+            </div>
+            <div class="chat-log" id="log"></div>
+            <div class="chat-compose">
+              <form onsubmit="reply(event)" id="replyForm">
+                <input id="staff" value="Егор" style="width:120px" title="Имя, которое видит клиент" />
+                <input id="text" placeholder="Ответ клиенту…" style="flex:1" autocomplete="off" />
+                <button>Отправить</button>
+              </form>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
     <div class="pane" id="pane-tickets">
       <h2>Заявки</h2>
@@ -247,7 +295,7 @@
     </div>
   </div>
   <script>
-    const S = { key: sessionStorage.getItem("vm_admin") || "", thread: "", tab: "chat", promoServices: [] };
+    const S = { key: sessionStorage.getItem("vm_admin") || "", thread: "", tab: "chat", promoServices: [], threads: [] };
     async function api(path, opt = {}) {
       const r = await fetch(path, {
         ...opt,
@@ -285,17 +333,76 @@
       document.getElementById("shell").hidden = false;
       document.getElementById("tabs").hidden = false;
     }
+    function esc(s) {
+      return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+    }
+    function onlyDigits(s) { return String(s || "").replace(/\D/g, ""); }
+    function fmtThreadTime(ts) {
+      if (!ts) return "";
+      const d = new Date(ts * 1000);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      return sameDay
+        ? d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+        : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    }
+    function threadInitials(t) {
+      const n = (t.name || t.phone || t.key || "?").trim();
+      const parts = n.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      const d = onlyDigits(n);
+      if (d.length >= 2) return d.slice(-2);
+      return n.slice(0, 2).toUpperCase();
+    }
+    function renderThreads() {
+      const q = (document.getElementById("threadSearch")?.value || "").trim().toLowerCase();
+      const digits = onlyDigits(q);
+      const list = (S.threads || []).filter(t => {
+        if (!q) return true;
+        const phone = String(t.phone || "").toLowerCase();
+        const name = String(t.name || "").toLowerCase();
+        const key = String(t.key || "").toLowerCase();
+        if (digits && (onlyDigits(phone).includes(digits) || onlyDigits(key).includes(digits))) return true;
+        return phone.includes(q) || name.includes(q) || key.includes(q);
+      });
+      const el = document.getElementById("threads");
+      if (!list.length) {
+        el.innerHTML = `<p class="muted" style="padding:12px">${q ? "Ничего не найдено" : "Пока пусто — клиент напишет из приложения"}</p>`;
+        return;
+      }
+      el.innerHTML = list.map(t => {
+        const title = t.name || t.phone || `Контакт ${t.key}`;
+        const preview = (t.from_staff ? "Вы: " : "") + (t.last || "Нет сообщений");
+        const phoneLine = t.phone ? esc(t.phone) : (t.key ? `ID ${esc(String(t.key))}` : "");
+        const on = t.key === S.thread ? " on" : "";
+        const safeKey = esc(String(t.key));
+        return `<div class="thread-item${on}" data-key="${safeKey}" onclick="openThread(this.dataset.key)">
+          <div class="thread-avatar">${esc(threadInitials(t))}</div>
+          <div class="thread-body">
+            <div class="thread-top">
+              <b>${esc(title)}</b>
+              <span class="thread-time">${esc(fmtThreadTime(t.last_at))}</span>
+            </div>
+            <div class="thread-phone">${phoneLine}</div>
+            <div class="thread-preview">${esc(preview)}</div>
+          </div>
+        </div>`;
+      }).join("");
+    }
     async function refresh() {
       const th = await api("/admin/api/threads");
-      const tickets = await api("/admin/api/tickets").catch(() => ({ items: [], vin: 0, book: 0 }));
+      S.threads = th.threads || [];
+      const tickets = await api("/admin/api/tickets").catch(() => ({ items: [] }));
       document.getElementById("tBadge").textContent = tickets.items && tickets.items.length ? `(${tickets.items.length})` : "";
-      document.getElementById("threads").innerHTML = (th.threads || []).map(t =>
-        `<div class="thread ${t.key===S.thread?'on':''}" onclick="openThread('${t.key}')">
-          <b>${t.name || t.phone || t.key}</b>
-          <div class="muted">${t.phone || ''} · ${t.count} сообщ.</div>
-          <div class="muted">${(t.last||'').slice(0,80)}</div>
-        </div>`).join("") || '<p class="muted">Пока пусто — напишите из приложения</p>';
+      renderThreads();
       if (S.thread) await openThread(S.thread, false);
+    }
+    function closeChatPane() {
+      S.thread = "";
+      document.getElementById("chatShell")?.classList.remove("chat-open");
+      document.getElementById("chatEmpty").hidden = false;
+      document.getElementById("chatPane").hidden = true;
+      renderThreads();
     }
     async function loadTickets() {
       const d = await api("/admin/api/tickets");
@@ -316,18 +423,25 @@
       await api("/admin/api/tickets/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ status }) });
       await loadTickets();
     }
-    async function openThread(key, refetch = true) {
+    async function openThread(key, reloadList = true) {
       S.thread = key;
       const d = await api("/admin/api/threads/" + encodeURIComponent(key));
-      document.getElementById("head").textContent = (d.name || d.phone || key);
-      document.getElementById("who").textContent = d.phone || "";
+      const title = d.name || d.phone || key;
+      document.getElementById("head").textContent = title;
+      document.getElementById("headPhone").textContent = d.phone ? d.phone : `Контакт ${key}`;
+      document.getElementById("chatEmpty").hidden = true;
+      document.getElementById("chatPane").hidden = false;
+      document.getElementById("chatShell")?.classList.add("chat-open");
       document.getElementById("log").innerHTML = (d.messages || []).map(m =>
         `<div class="msg ${m.from_staff ? 'staff' : 'client'}">
-          ${m.from_staff ? `<div class="name">${m.staff_name || "Менеджер"}</div>` : ""}
-          ${m.text}
+          ${m.from_staff ? `<div class="name">${esc(m.staff_name || "Менеджер")}</div>` : ""}
+          ${esc(m.text)}
         </div>`).join("");
-      document.getElementById("replyForm").hidden = false;
-      if (refetch) await refresh();
+      if (reloadList) {
+        const th = await api("/admin/api/threads");
+        S.threads = th.threads || [];
+      }
+      renderThreads();
       const log = document.getElementById("log");
       log.scrollTop = log.scrollHeight;
     }
@@ -340,7 +454,7 @@
         body: JSON.stringify({ text, staff_name: document.getElementById("staff").value.trim() || "Егор" }),
       });
       document.getElementById("text").value = "";
-      await openThread(S.thread);
+      await openThread(S.thread, true);
     }
     async function loadPush() {
       const a = await api("/admin/api/audience");

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/screens/booking_flow.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/booking_actions.dart';
 
 class BookScreen extends StatefulWidget {
   const BookScreen({super.key, required this.store});
@@ -22,6 +24,8 @@ class _BookScreenState extends State<BookScreen> {
       if (q.isEmpty) return true;
       return '${s.title} ${s.subtitle}'.toLowerCase().contains(q.toLowerCase());
     }).toList();
+    final bookings = store.manageableBookings;
+    final df = DateFormat('d MMM, HH:mm', 'ru');
     return AppPageScaffold(
       store: store,
       title: 'Запись',
@@ -39,6 +43,29 @@ class _BookScreenState extends State<BookScreen> {
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingFlow(store: store))),
             child: const Text('Быстрая запись'),
           ),
+          if (bookings.isNotEmpty) ...[
+            const SizedBox(height: 22),
+            const Text('Активные записи', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            ...bookings.map(
+              (v) => Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(v.serviceTitle, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text('${v.branchName} · ${df.format(v.when)}', style: const TextStyle(color: vagMuted, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      BookingManageButtons(store: store, visit: v, compact: true),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           const Text('Или начните с услуги', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:stocrm_mobile_app/data/mock.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/booking_actions.dart';
 
 class StatusScreen extends StatelessWidget {
   const StatusScreen({super.key, required this.store, this.visit});
@@ -40,6 +41,13 @@ class StatusScreen extends StatelessWidget {
                         : '${current.status} · ${current.branchName}',
                     style: const TextStyle(color: Colors.white),
                   ),
+                  if (current != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('d MMMM, HH:mm', 'ru').format(current.when),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Text(
                     current?.isReady == true ? 'Ваша машина готова!' : 'в работе  →  выполнено  →  машина готова',
@@ -49,6 +57,10 @@ class StatusScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (current != null && current.canManageBooking) ...[
+            const SizedBox(height: 12),
+            BookingManageButtons(store: store, visit: current),
+          ],
           const SizedBox(height: 12),
           Text(
             store.crmLive

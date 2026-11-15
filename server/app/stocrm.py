@@ -425,6 +425,54 @@ class StoCrm:
         )
         return _as_list(data)
 
+    def offer_status_change(
+        self,
+        offer_id: int,
+        *,
+        board_id: int,
+        status_id: int,
+        reason_comment: str | None = None,
+    ) -> Any:
+        payload: dict[str, Any] = {
+            "OFFER_ID": int(offer_id),
+            "BOARD_ID": int(board_id),
+            "STATUS_ID": int(status_id),
+        }
+        rc = (reason_comment or "").strip()
+        if rc:
+            payload["REASON_COMMENT"] = rc[:250]
+        return self.call("offer/status/change", payload)
+
+    def offer_update_field(self, offer_id: int, field_name: str, data: str) -> Any:
+        return self.call(
+            "offer/update_field",
+            {"OFFER_ID": int(offer_id), "FIELD_NAME": field_name, "DATA": str(data)},
+        )
+
+    def calendar_card_edit(
+        self,
+        *,
+        customer_id: int,
+        post_id: int,
+        card_id: int,
+        date_from: int,
+        date_to: int,
+        offer_id: int,
+        comment: str = "",
+    ) -> Any:
+        return self.call(
+            "calendar/card/edit",
+            {
+                "CUSTOMER_ID": int(customer_id),
+                "POST_ID": int(post_id),
+                "CARD_ID": int(card_id),
+                "DATE_FROM": int(date_from),
+                "DATE_TO": int(date_to),
+                "OFFER_ID": int(offer_id),
+                "COMMENT": comment,
+            },
+        )
+
     def works_by_contact(self, contact_id: int, *, pages: int = 6) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         max_pages = max(int(pages or 1), 1)

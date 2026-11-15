@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 import secrets
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, time
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -55,6 +55,7 @@ from app.store import (
     list_shorts,
     list_shorts_admin,
     list_threads,
+    thread_info,
     list_tickets,
     list_vin,
     contact_id_from_key,
@@ -294,6 +295,92 @@ def _lines_from_strings(names: list[str] | None) -> list[dict[str, Any]]:
     return [{"name": str(n).strip()} for n in (names or []) if str(n).strip()]
 
 
+def _booking_mutable(mapped: dict[str, Any]) -> bool:
+    if mapped.get("service_book") or mapped.get("successful"):
+        return False
+    if mapped.get("is_ready") or mapped.get("is_final"):
+        return False
+    stage = str(mapped.get("stage") or "")
+    if stage in ("closed", "done", "work", "ready"):
+        return False
+    t = str(mapped.get("status") or "").lower()
+    if any(x in t for x in ("выполнен", "готов", "успешн", "отказ", "мусор", "работ")):
+        return False
+    return True
+
+
+def _cancel_status_id(board_id: int) -> int:
+    preferred = {4, 5, 5648}
+    for row in stocrm.offer_statuses(board_id):
+        sid = int(row.get("OFFER_STATUS_ID") or row.get("STATUS_ID") or row.get("ID") or 0)
+        if sid in preferred:
+            return sid
+        name = str(row.get("STATUS_NAME") or "").lower()
+        if any(x in name for x in ("отказ", "мусор", "не приехал")):
+            return sid
+    return 5
+
+
+def _parse_booking_when(text: str) -> datetime:
+    raw = (text or "").strip()
+    if not raw:
+        raise HTTPException(400, "Укажите дату и время")
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=MSK)
+        return dt.astimezone(MSK)
+    except ValueError:
+        pass
+    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=MSK)
+        except ValueError:
+            continue
+    raise HTTPException(400, "Не удалось разобрать дату и время")
+
+
+def _find_calendar_card(customer_id: int, offer_id: int, anchor: datetime | None = None) -> dict[str, Any] | None:
+    anchor = anchor or datetime.now(MSK)
+    for delta in range(-21, 45):
+        day = (anchor + timedelta(days=delta)).date()
+        midnight = datetime.combine(day, time.min, tzinfo=MSK)
+        try:
+            cards = stocrm.calendar_cards(customer_id, unix(midnight))
+        except StoCrmError:
+            continue
+        for c in cards:
+            oid = c.get("OFFER_ID")
+            if oid in (None, False, "", "0", 0):
+                continue
+            try:
+                if int(oid) == int(offer_id):
+                    return c
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _raw_offer_for_contact(contact_id: int, offer_id: int) -> dict[str, Any]:
+    offers = stocrm.offers_by_contact(contact_id, all_boards=True, pages=30)
+    found = next((o for o in offers if int(o.get("OFFER_ID") or 0) == int(offer_id)), None)
+    if not found:
+        raise HTTPException(404, "Заявка не найдена")
+    return found
+
+
+def _require_mutable_booking(contact_id: int, offer_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    raw = _raw_offer_for_contact(contact_id, offer_id)
+    oid = int(raw.get("OFFER_ID") or 0)
+    works_map = stocrm.works_index([oid], contact_id=contact_id)
+    parts_map = stocrm.materials_index([oid])
+    w, p = _merge_works_parts(raw, works_map.get(oid, []), parts_map.get(oid, []))
+    mapped = _offer_out(raw, w, p)
+    if not mapped.get("modifiable"):
+        raise HTTPException(409, "Эту запись нельзя изменить — авто уже в работе или заявка закрыта")
+    return raw, mapped
+
+
 def _offer_out(
     o: dict[str, Any],
     works: list[str] | None = None,
@@ -311,7 +398,7 @@ def _offer_out(
     successful = is_bonus_offer(status_id, title)
     service_book = is_service_book_offer(status_id, title)
     car_id, car_plate, car_label = _offer_car(o)
-    return {
+    draft = {
         "id": o.get("OFFER_ID"),
         "status": title,
         "status_id": status_id or None,
@@ -322,6 +409,7 @@ def _offer_out(
         "successful": successful,
         "service_book": service_book,
         "board": o.get("BOARD_NAME"),
+        "board_id": o.get("BOARD_ID"),
         "sum": o.get("OFFER_SUM"),
         "works_sum": o.get("WORKS_SUM"),
         "car": car_label,
@@ -338,6 +426,8 @@ def _offer_out(
         "part_lines": part_lines or [],
         "steps": _funnel_steps(status_id, title),
     }
+    draft["modifiable"] = _booking_mutable(draft)
+    return draft
 
 
 def _stage(status_id: int, title: str) -> str:
@@ -418,6 +508,11 @@ class BookingIn(BaseModel):
     branch_id: str | None = None
     when: str | None = None
     comment: str = Field(default="Запись из приложения VAG Market")
+
+
+class RescheduleIn(BaseModel):
+    when: str
+    branch_id: str | None = None
 
 
 class DeviceIn(BaseModel):
@@ -1011,6 +1106,133 @@ def bookings(body: BookingIn, authorization: str | None = Header(default=None)) 
     }
 
 
+@app.post("/v1/bookings/{offer_id}/cancel")
+def booking_cancel(offer_id: int, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = require_user(authorization)
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта в CRM")
+    raw, mapped = _require_mutable_booking(int(cid), offer_id)
+    board_id = int(raw.get("BOARD_ID") or settings.stocrm_board_id or 1097)
+    status_id = _cancel_status_id(board_id)
+    comment = str(raw.get("COMMENT") or "").strip()
+    note = "Отмена записи из приложения VAG Market"
+    try:
+        stocrm.offer_status_change(
+            offer_id,
+            board_id=board_id,
+            status_id=status_id,
+            reason_comment=note,
+        )
+    except StoCrmError as e:
+        raise HTTPException(502, f"STOCRM не принял отмену: {str(e)[:300]}") from e
+    try:
+        merged = f"{comment}\n{note}".strip() if comment else note
+        stocrm.offer_update_field(offer_id, "COMMENT", merged[:2000])
+    except StoCrmError:
+        pass
+    branch_id = int(raw.get("CUSTOMER_ID") or 0)
+    if branch_id:
+        card = _find_calendar_card(branch_id, offer_id)
+        if card:
+            cid_card = int(card.get("CARD_ID") or 0)
+            post_id = int(card.get("POST_ID") or 0)
+            df = int(card.get("DATE_FROM") or 0)
+            dt = int(card.get("DATE_TO") or 0)
+            if cid_card and post_id and df and dt:
+                try:
+                    stocrm.calendar_card_edit(
+                        customer_id=branch_id,
+                        post_id=post_id,
+                        card_id=cid_card,
+                        date_from=df,
+                        date_to=dt,
+                        offer_id=offer_id,
+                        comment=note,
+                    )
+                except StoCrmError:
+                    pass
+    add_note(int(cid), "Запись отменена", f"Сделка №{offer_id} · клиент отменил в приложении", offer_id=offer_id, kind="book")
+    return {"ok": True, "message": "Запись отменена. Менеджер увидит изменение в CRM."}
+
+
+@app.post("/v1/bookings/{offer_id}/reschedule")
+def booking_reschedule(
+    offer_id: int,
+    body: RescheduleIn,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    user = require_user(authorization)
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта в CRM")
+    raw, _mapped = _require_mutable_booking(int(cid), offer_id)
+    when = _parse_booking_when(body.when)
+    branch_raw = (body.branch_id or "").strip() or str(raw.get("CUSTOMER_ID") or "")
+    if not branch_raw.isdigit():
+        raise HTTPException(400, "Укажите филиал")
+    customer_id = int(branch_raw)
+    if str(raw.get("CUSTOMER_ID") or "") != str(customer_id):
+        try:
+            stocrm.offer_update_field(offer_id, "CUSTOMER_ID", str(customer_id))
+        except StoCrmError as e:
+            raise HTTPException(502, f"Не удалось сменить филиал: {str(e)[:200]}") from e
+    slot_end = when + timedelta(hours=1)
+    when_label = when.strftime("%d.%m.%Y %H:%M")
+    note = f"Перенос записи из приложения: {when_label}"
+    comment = str(raw.get("COMMENT") or "").strip()
+    try:
+        merged = f"{comment}\n{note}".strip() if comment else note
+        stocrm.offer_update_field(offer_id, "COMMENT", merged[:2000])
+    except StoCrmError as e:
+        raise HTTPException(502, f"Не удалось обновить заявку: {str(e)[:200]}") from e
+    card: dict[str, Any] | None = None
+    search_ids = [customer_id]
+    old_customer = int(raw.get("CUSTOMER_ID") or 0)
+    if old_customer and old_customer not in search_ids:
+        search_ids.append(old_customer)
+    for cust in search_ids:
+        card = _find_calendar_card(cust, offer_id, anchor=when)
+        if card:
+            customer_id = cust
+            break
+    calendar_ok = False
+    if card:
+        cid_card = int(card.get("CARD_ID") or 0)
+        post_id = int(card.get("POST_ID") or 0)
+        if not post_id:
+            posts = stocrm.calendar_posts(customer_id)
+            if posts:
+                post_id = int(posts[0].get("POST_ID") or posts[0].get("ID") or 0)
+        if cid_card and post_id:
+            try:
+                stocrm.calendar_card_edit(
+                    customer_id=customer_id,
+                    post_id=post_id,
+                    card_id=cid_card,
+                    date_from=unix(when),
+                    date_to=unix(slot_end),
+                    offer_id=offer_id,
+                    comment=note,
+                )
+                calendar_ok = True
+            except StoCrmError:
+                calendar_ok = False
+    add_note(
+        int(cid),
+        "Перенос записи",
+        f"Сделка №{offer_id} · новый слот {when_label}",
+        offer_id=offer_id,
+        kind="book",
+    )
+    return {
+        "ok": True,
+        "message": "Запись перенесена." if calendar_ok else "Новое время передано менеджеру. Подтверждение — по звонку.",
+        "calendar_updated": calendar_ok,
+        "when": when.isoformat(),
+    }
+
+
 @app.post("/v1/devices")
 def devices(body: DeviceIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user = require_user(authorization)
@@ -1503,21 +1725,34 @@ def admin_page() -> FileResponse:
 
 
 @app.get("/admin/api/threads")
-def admin_threads(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
+def admin_threads(
+    x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret"),
+    phone: str | None = Query(default=None),
+) -> dict[str, Any]:
     require_admin(x_bff_secret)
-    return {"threads": list_threads()}
+    threads = list_threads()
+    if phone and phone.strip():
+        digits = re.sub(r"\D", "", phone.strip())
+        if digits:
+            threads = [
+                t
+                for t in threads
+                if digits in re.sub(r"\D", "", str(t.get("phone") or ""))
+                or digits in re.sub(r"\D", "", str(t.get("key") or ""))
+            ]
+    return {"threads": threads}
 
 
 @app.get("/admin/api/threads/{key}")
 def admin_thread(key: str, x_bff_secret: str | None = Header(default=None, alias="X-BFF-Secret")) -> dict[str, Any]:
     require_admin(x_bff_secret)
     msgs = list_messages(key)
-    last = msgs[-1] if msgs else {}
+    info = thread_info(key)
     return {
         "key": key,
         "messages": msgs,
-        "phone": last.get("phone") or "",
-        "name": last.get("name") or "",
+        "phone": info.get("phone") or "",
+        "name": info.get("name") or "",
     }
 
 

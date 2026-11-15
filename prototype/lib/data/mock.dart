@@ -168,6 +168,8 @@ class Visit {
     this.serviceBook = false,
     this.carProfileId,
     this.steps = const [],
+    this.branchId,
+    this.modifiable = false,
   });
 
   final String id;
@@ -190,6 +192,11 @@ class Visit {
   final bool successful;
   final bool serviceBook;
   final List<RepairStep> steps;
+  final String? branchId;
+  final bool modifiable;
+
+  bool get canManageBooking =>
+      modifiable && !isHistory && !isReady && !serviceBook && !successful && status.toLowerCase() != 'отменена';
 
   Visit copyWith({
     List<String>? works,
@@ -198,6 +205,10 @@ class Visit {
     List<VisitLineItem>? partLines,
     int? amount,
     String? serviceTitle,
+    DateTime? when,
+    String? status,
+    bool? isHistory,
+    bool? modifiable,
   }) {
     return Visit(
       id: id,
@@ -205,8 +216,8 @@ class Visit {
       branchName: branchName,
       carPlate: carPlate,
       carProfileId: carProfileId,
-      when: when,
-      status: status,
+      when: when ?? this.when,
+      status: status ?? this.status,
       amount: amount ?? this.amount,
       mileage: mileage,
       works: works ?? this.works,
@@ -216,10 +227,12 @@ class Visit {
       statusId: statusId,
       stage: stage,
       isReady: isReady,
-      isHistory: isHistory,
+      isHistory: isHistory ?? this.isHistory,
       successful: successful,
       serviceBook: serviceBook,
       steps: steps,
+      branchId: branchId,
+      modifiable: modifiable ?? this.modifiable,
     );
   }
 }
@@ -439,6 +452,8 @@ class MockStore extends ChangeNotifier {
       carPlate: 'А 123 ВС 72',
       when: DateTime.now().add(const Duration(days: 2, hours: 4)),
       status: 'подтверждена',
+      modifiable: true,
+      branchId: 'b1',
     ),
     Visit(
       id: 'v2',
@@ -506,7 +521,9 @@ class MockStore extends ChangeNotifier {
     return open.isEmpty ? null : open.first;
   }
 
-  List<Visit> get upcoming => visits.where((v) => !v.isHistory && v.status != 'отменена').toList();
+  List<Visit> get upcoming => visits.where((v) => !v.isHistory && v.status != 'отменена' && !v.serviceBook).toList();
+
+  List<Visit> get manageableBookings => upcoming.where((v) => v.canManageBooking).toList();
 
   List<Visit> get serviceBookVisits => visits.where((v) => v.serviceBook).toList();
 
@@ -1004,6 +1021,8 @@ class MockStore extends ChangeNotifier {
       isHistory: m['is_history'] == true || serviceBook,
       successful: m['successful'] == true,
       serviceBook: serviceBook,
+      branchId: '${m['branch_id'] ?? ''}'.isEmpty ? null : '${m['branch_id']}',
+      modifiable: m['modifiable'] == true,
       steps: [
         if (m['steps'] is List)
           for (final s in m['steps'] as List)
@@ -1068,6 +1087,36 @@ class MockStore extends ChangeNotifier {
       'branch_id': branchId,
       'when': when,
     });
+  }
+
+  Future<String> cancelBookingRemote(String offerId) async {
+    if (api.token == null) {
+      cancelVisit(offerId);
+      return 'Запись отменена';
+    }
+    final res = await api.post('/v1/bookings/$offerId/cancel', {});
+    await refreshVisits();
+    notifyListeners();
+    return '${res['message'] ?? 'Запись отменена'}';
+  }
+
+  Future<String> rescheduleBookingRemote(String offerId, {required DateTime when, String? branchId}) async {
+    if (api.token == null) {
+      final i = visits.indexWhere((v) => v.id == offerId);
+      if (i >= 0) {
+        final v = visits[i];
+        visits = [...visits.sublist(0, i), v.copyWith(when: when), ...visits.sublist(i + 1)];
+        notifyListeners();
+      }
+      return 'Запись перенесена';
+    }
+    final res = await api.post('/v1/bookings/$offerId/reschedule', {
+      'when': when.toIso8601String(),
+      if (branchId != null && branchId.isNotEmpty) 'branch_id': branchId,
+    });
+    await refreshVisits();
+    notifyListeners();
+    return '${res['message'] ?? 'Запись перенесена'}';
   }
 
   String get privacyUrl {

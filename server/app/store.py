@@ -165,6 +165,18 @@ def add_message(
     return msg
 
 
+def thread_info(key: str) -> dict[str, Any]:
+    with _LOCK:
+        data = _load()
+        meta = (data.get("meta") or {}).get(key) or {}
+        msgs = data.get("chats", {}).get(key) or []
+        last = msgs[-1] if msgs else {}
+        return {
+            "phone": meta.get("phone") or last.get("phone") or "",
+            "name": meta.get("name") or last.get("name") or "",
+        }
+
+
 def list_threads() -> list[dict[str, Any]]:
     with _LOCK:
         data = _load()
