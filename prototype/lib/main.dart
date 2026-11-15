@@ -254,7 +254,7 @@ class _ShellScreenState extends State<ShellScreen> {
       GarageScreen(store: store),
       BranchesScreen(store: store, inShell: true),
       RecommendationsScreen(store: store, inShell: true),
-      ChatScreen(store: store, inShell: true),
+      ChatScreen(store: store, inShell: true, active: _index == FitBottomBar.chatIndex),
     ];
 
     final unread = store.unreadNotes.length;
@@ -274,7 +274,9 @@ class _ShellScreenState extends State<ShellScreen> {
         index: _index,
         chatBadge: store.unreadChat,
         onSelect: (i) {
-          if (i == FitBottomBar.chatIndex) store.markChatRead();
+          if (i == FitBottomBar.chatIndex) {
+            store.refreshChat().then((_) => store.markChatRead());
+          }
           setState(() => _index = i);
         },
       ),

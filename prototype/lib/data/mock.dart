@@ -363,6 +363,8 @@ class MockStore extends ChangeNotifier {
   bool crmLive = false;
   bool foundInCrm = false;
   Timer? _poller;
+  Timer? _chatPoller;
+  static const _chatPollInterval = Duration(seconds: 4);
   List<AppNote> notes = [];
   String? pendingReadyAlert;
   bool _pushListenersStarted = false;
@@ -604,15 +606,28 @@ class MockStore extends ChangeNotifier {
     await refreshTickets();
   }
 
+  bool _sameChat(List<ChatMessage> next) {
+    if (next.length != chat.length) return false;
+    for (var i = 0; i < next.length; i++) {
+      final a = chat[i];
+      final b = next[i];
+      if (a.fromStaff != b.fromStaff || a.text != b.text || a.created != b.created || a.staffName != b.staffName) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<void> refreshChat() async {
     if (api.token == null) return;
     try {
       final res = await api.get('/v1/chat');
       final sn = (res['staff_name'] as String?)?.trim();
-      if (sn != null && sn.isNotEmpty) staffName = sn;
+      final staffChanged = sn != null && sn.isNotEmpty && sn != staffName;
+      if (staffChanged) staffName = sn;
       final raw = res['messages'];
       if (raw is! List) return;
-      chat = [
+      final next = [
         for (final item in raw)
           if (item is Map)
             ChatMessage(
@@ -623,6 +638,8 @@ class MockStore extends ChangeNotifier {
               created: _toInt(item['created']),
             ),
       ];
+      if (_sameChat(next) && !staffChanged) return;
+      chat = next;
       notifyListeners();
     } catch (_) {}
   }
@@ -632,8 +649,20 @@ class MockStore extends ChangeNotifier {
       sendChat(text);
       return;
     }
-    await api.post('/v1/chat', {'text': text});
-    await refreshChat();
+    final prevLen = chat.length;
+    chat = [
+      ...chat,
+      ChatMessage(fromStaff: false, text: text, created: DateTime.now().millisecondsSinceEpoch ~/ 1000),
+    ];
+    notifyListeners();
+    try {
+      await api.post('/v1/chat', {'text': text});
+      await refreshChat();
+    } catch (e) {
+      if (chat.length > prevLen) chat = chat.sublist(0, prevLen);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> refreshBonuses() async {
@@ -772,17 +801,26 @@ class MockStore extends ChangeNotifier {
       final title = msg.notification?.title ?? msg.data['title']?.toString() ?? 'VAG Market';
       final body = msg.notification?.body ?? msg.data['body']?.toString() ?? '';
       showBannerPush(id: msg.hashCode, title: title, body: body);
-      pollNow();
+      final kind = msg.data['type']?.toString() ?? '';
+      if (kind == 'chat') {
+        unawaited(refreshChat());
+      } else {
+        unawaited(pollNow());
+      }
     });
-    FirebaseMessaging.onMessageOpenedApp.listen((_) {
-      pendingScreen = 'chat';
-      pollNow();
+    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+      final kind = msg.data['type']?.toString() ?? '';
+      if (kind == 'chat') pendingScreen = 'chat';
+      unawaited(refreshChat());
+      unawaited(pollNow());
     });
   }
 
   void startPolling() {
     _poller?.cancel();
     _poller = Timer.periodic(const Duration(seconds: 90), (_) => pollNow());
+    _chatPoller?.cancel();
+    _chatPoller = Timer.periodic(_chatPollInterval, (_) => refreshChat());
   }
 
   Future<void> pollNow() async {
@@ -1231,6 +1269,8 @@ class MockStore extends ChangeNotifier {
   void logout() {
     _poller?.cancel();
     _poller = null;
+    _chatPoller?.cancel();
+    _chatPoller = null;
     final token = api.token;
     loggedIn = false;
     crmLive = false;
@@ -1351,6 +1391,7 @@ class MockStore extends ChangeNotifier {
   @override
   void dispose() {
     _poller?.cancel();
+    _chatPoller?.cancel();
     super.dispose();
   }
 

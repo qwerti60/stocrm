@@ -44,7 +44,7 @@ def add_note(contact_id: int, title: str, body: str, offer_id: Any = None, kind:
     badge = count_unread_inbox(int(contact_id))
     tokens = fcm_tokens(int(contact_id))
     for tok in tokens:
-        send_fcm(tok, title, body, badge=badge)
+        send_fcm(tok, title, body, badge=badge, kind=kind)
     return note
 
 
@@ -114,7 +114,7 @@ def poll_once(stocrm: Any, contact_ids: list[int]) -> int:
     return created
 
 
-def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> None:
+def send_fcm(token: str, title: str, body: str, *, badge: int | None = None, kind: str = "ready") -> None:
     if not token:
         return
     access, project_id = _fcm_access()
@@ -136,7 +136,7 @@ def send_fcm(token: str, title: str, body: str, *, badge: int | None = None) -> 
                     "token": token,
                     "notification": {"title": title, "body": body},
                     "data": {
-                        "type": "ready",
+                        "type": kind or "ready",
                         "title": title,
                         "body": body,
                         "badge": str(int(badge)) if badge is not None else "",
