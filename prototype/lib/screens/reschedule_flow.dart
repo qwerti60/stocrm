@@ -15,6 +15,9 @@ class RescheduleFlow extends StatefulWidget {
 }
 
 class _RescheduleFlowState extends State<RescheduleFlow> {
+  static final _fmtDateTime = DateFormat('d MMMM, HH:mm', 'ru');
+  static final _fmtDay = DateFormat('EEE d MMM', 'ru');
+
   int step = 0;
   Branch? branch;
   DateTime day = DateTime.now().add(const Duration(days: 1));
@@ -122,7 +125,6 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
   @override
   Widget build(BuildContext context) {
     final titles = ['Филиал', 'Время', 'Подтверждение'];
-    final df = DateFormat('d MMMM, HH:mm', 'ru');
     return AppPageScaffold(
       store: widget.store,
       title: 'Перенос · ${titles[step]}',
@@ -136,7 +138,7 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Text(
-              'Сделка №${widget.visit.id} · было ${df.format(widget.visit.when)}',
+              'Сделка №${widget.visit.id} · было ${_fmtDateTime.format(widget.visit.when)}',
               style: const TextStyle(color: vagMuted, fontSize: 12),
             ),
           ),
@@ -185,7 +187,6 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
               .toList(),
         );
       case 1:
-        final dfDay = DateFormat('EEE d MMM', 'ru');
         final days = List.generate(7, (i) => DateTime.now().add(Duration(days: i + 1)));
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -197,12 +198,12 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: days.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
                 itemBuilder: (_, i) {
                   final d = days[i];
                   final on = d.day == day.day && d.month == day.month;
                   return ChoiceChip(
-                    label: Text(dfDay.format(d)),
+                    label: Text(_fmtDay.format(d)),
                     selected: on,
                     onSelected: (_) {
                       setState(() {
@@ -235,7 +236,6 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
           ],
         );
       default:
-        final df = DateFormat('d MMMM, HH:mm', 'ru');
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -249,8 +249,8 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
                     Text(widget.visit.carPlate, style: const TextStyle(color: vagMuted)),
                     const SizedBox(height: 10),
                     Text(branch?.address.isNotEmpty == true ? branch!.address : (branch?.name ?? ''), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    if (slot != null) Text('Новое время: ${df.format(slot!)}'),
-                    Text('Было: ${df.format(widget.visit.when)}', style: const TextStyle(color: vagMuted, fontSize: 12)),
+                    if (slot != null) Text('Новое время: ${_fmtDateTime.format(slot!)}'),
+                    Text('Было: ${_fmtDateTime.format(widget.visit.when)}', style: const TextStyle(color: vagMuted, fontSize: 12)),
                   ],
                 ),
               ),
