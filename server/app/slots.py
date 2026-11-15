@@ -41,16 +41,28 @@ def as_unix(v: Any) -> int | None:
         return None
 
 
-def parse_busy(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def parse_busy(
+    cards: list[dict[str, Any]],
+    *,
+    exclude_offer_ids: set[int] | None = None,
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    excluded = exclude_offer_ids or set()
     for c in cards:
         if str(c.get("DEACTIVATE") or "N").upper() == "Y":
             continue
+        if excluded:
+            oid = c.get("OFFER_ID")
+            try:
+                if int(oid) in excluded:
+                    continue
+            except (TypeError, ValueError):
+                pass
         a = as_unix(c.get("DATE_FROM"))
         b = as_unix(c.get("DATE_TO"))
         if a is None or b is None or b <= a:
             continue
-        out.append({"from": a, "to": b, "post": c.get("POST_ID")})
+        out.append({"from": a, "to": b, "post": c.get("POST_ID"), "offer_id": c.get("OFFER_ID")})
     return out
 
 
@@ -60,9 +72,10 @@ def build_slots(
     cards: list[dict[str, Any]],
     post_ids: list[Any],
     now: datetime | None = None,
+    exclude_offer_ids: set[int] | None = None,
 ) -> list[dict[str, Any]]:
     start, end = day_bounds(day)
-    busy = parse_busy(cards)
+    busy = parse_busy(cards, exclude_offer_ids=exclude_offer_ids)
     posts = {p for p in post_ids if p not in (None, "", 0, "0")}
     posts |= {c["post"] for c in busy if c["post"] not in (None, "", 0, "0")}
     capacity = max(len(posts), 2)
@@ -93,3 +106,35 @@ def build_slots(
             )
         t += hour
     return out
+
+
+def hour_start(dt: datetime) -> datetime:
+    loc = dt.astimezone(MSK)
+    return loc.replace(minute=0, second=0, microsecond=0)
+
+
+def slot_free_at(
+    *,
+    when: datetime,
+    day: date,
+    cards: list[dict[str, Any]],
+    post_ids: list[Any],
+    exclude_offer_ids: set[int] | None = None,
+) -> bool:
+    """True if the hourly window at `when` has at least one free post."""
+    target = hour_start(when)
+    for s in build_slots(
+        day=day,
+        cards=cards,
+        post_ids=post_ids,
+        exclude_offer_ids=exclude_offer_ids,
+    ):
+        try:
+            at = datetime.fromisoformat(str(s.get("at")).replace("Z", "+00:00"))
+            if at.tzinfo is None:
+                at = at.replace(tzinfo=MSK)
+            if hour_start(at) == target:
+                return int(s.get("free") or 0) > 0
+        except (TypeError, ValueError):
+            continue
+    return False

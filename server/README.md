@@ -30,16 +30,18 @@ python probe.py
 
 - `POST /v1/auth/lookup` `{"phone":"9139142994"}` — есть ли контакт и почта в CRM
 - `POST /v1/auth/otp/request` `{"phone":"9001234567","email":"user@mail.ru"}` — email обязателен, если в CRM его нет
-- `POST /v1/auth/otp/confirm` `{"phone":"9001234567","code":"1234"}` — ищет контакт по `MAIN_PHONE`, при регистрации создаёт контакт с телефоном и почтой
+- `POST /v1/auth/otp/confirm` `{"phone":"9001234567","code":"1234"}` — ищет контакт по `MAIN_PHONE`, при регистрации создаёт контакт с телефоном и почтой; в ответе `need_profile`, если в CRM нет ФИО
+- `GET /v1/me` — телефон, `need_profile`, `profile` (ФИО, дата рождения из `contact/get_info`)
+- `PATCH /v1/me/profile` `{"last_name":"Иванов","first_name":"Иван","middle_name":"Иванович","birthday":"1990-05-15"}` — пишет в STOCRM `contact/update`
 - `GET /v1/garage` — авто контакта
 - `POST /v1/garage` — добавить авто в CRM (`contact/add_car`)
 - `DELETE /v1/garage/{id}` — убрать из гаража
 - `GET /v1/visits` — сделки контакта на доске 1097 (история, воронка, работы)
-- `GET /v1/slots?branch_id=2113&date=2026-09-21` — свободные часы филиала
+- `GET /v1/slots?branch_id=2113&date=2026-09-21&exclude_offer_id=123` — свободные часы (карточки календаря; `exclude_offer_id` — свой слот при переносе)
 - `GET /v1/branches` — активные филиалы (`customers/get_filtered`)
 - `POST /v1/bookings` — `offer/new` в воронку 1097, `OFFER_RESPONSIBLE_ID` из `STOCRM_BOOKING_RESPONSIBLE_ID` или по `STOCRM_MANAGER_PHONE` (`users/get_from_filter`, [WIKI-A-720](https://stocrm.ru/wiki/article/WIKI-A-720/))
-- `POST /v1/bookings/{offer_id}/cancel` — отмена (статус «отказ» в CRM + комментарий)
-- `POST /v1/bookings/{offer_id}/reschedule` — перенос (`when` ISO, `branch_id` опционально; календарь + комментарий)
+- `POST /v1/bookings/{offer_id}/cancel` — отмена (статус «отказ» + снятие карточки с поста `calendar/card/deactivate`)
+- `POST /v1/bookings/{offer_id}/reschedule` — перенос (проверка занятости, `calendar/card/edit` или `add`; старый пост освобождается)
 - `GET /v1/promos` — акции (те же, что рассылка)
 - `GET /v1/shorts` — слайдер
 - `GET /v1/search?q=` — поиск

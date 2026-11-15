@@ -217,6 +217,42 @@ class StoCrm:
                 return val.lower()
         return None
 
+    def contact_get_info(self, contact_id: int) -> dict[str, Any]:
+        data = self.call("contact/get_info", {"CONTACT_ID": int(contact_id)})
+        if isinstance(data, dict):
+            resp = data.get("RESPONSE", data)
+            if isinstance(resp, dict):
+                inner = resp.get("DATA", resp)
+                if isinstance(inner, dict):
+                    return inner
+                if isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                    return inner[0]
+            if isinstance(data.get("DATA"), dict):
+                return data["DATA"]
+        return {}
+
+    def contact_update_profile(
+        self,
+        contact_id: int,
+        *,
+        last_name: str,
+        first_name: str,
+        middle_name: str = "",
+        birthday: str = "",
+    ) -> Any:
+        title = " ".join(x for x in (last_name, first_name, middle_name) if x.strip())
+        payload: dict[str, Any] = {
+            "CONTACT_ID": int(contact_id),
+            "LAST_NAME": last_name.strip(),
+            "FIRST_NAME": first_name.strip(),
+            "TITLE": title[:200],
+        }
+        if middle_name.strip():
+            payload["MIDDLE_NAME"] = middle_name.strip()
+        if birthday.strip():
+            payload["BIRTHDAY"] = birthday.strip()
+        return self.call("contact/update", payload)
+
     def contact_set_email(self, contact_id: int, email: str) -> Any:
         email = email.strip().lower()
         existing = None
@@ -472,6 +508,34 @@ class StoCrm:
                 "COMMENT": comment,
             },
         )
+
+    def calendar_card_add(
+        self,
+        *,
+        customer_id: int,
+        post_id: int,
+        date_from: int,
+        date_to: int,
+        offer_id: int,
+        comment: str = "",
+    ) -> Any:
+        return self.call(
+            "calendar/card/add",
+            {
+                "CUSTOMER_ID": int(customer_id),
+                "POST_ID": int(post_id),
+                "DATE_FROM": int(date_from),
+                "DATE_TO": int(date_to),
+                "OFFER_ID": int(offer_id),
+                "COMMENT": comment,
+            },
+        )
+
+    def calendar_card_deactivate(self, *, customer_id: int, card_id: int, post_id: int | None = None) -> Any:
+        payload: dict[str, Any] = {"CUSTOMER_ID": int(customer_id), "CARD_ID": int(card_id)}
+        if post_id:
+            payload["POST_ID"] = int(post_id)
+        return self.call("calendar/card/deactivate", payload)
 
     def works_by_contact(self, contact_id: int, *, pages: int = 6) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []

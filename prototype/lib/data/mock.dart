@@ -362,6 +362,7 @@ class MockStore extends ChangeNotifier {
   int? crmContactId;
   bool crmLive = false;
   bool foundInCrm = false;
+  bool needProfile = false;
   Timer? _poller;
   Timer? _chatPoller;
   static const _chatPollInterval = Duration(seconds: 4);
@@ -729,26 +730,17 @@ class MockStore extends ChangeNotifier {
     });
   }
 
-  Future<void> loginRemote(String rawPhone, String code, {String? email}) async {
-    final res = await api.post('/v1/auth/otp/confirm', {
-      'phone': rawPhone,
-      'code': code,
-      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
-    });
-    api.token = res['token'] as String?;
-    final cid = res['contact_id'];
+  void applyMeFromApi(Map<String, dynamic> me) {
+    phone = '${me['phone'] ?? phone}';
+    email = '${me['email'] ?? email}';
+    clientName = '${me['name'] ?? clientName}';
+    needProfile = me['need_profile'] == true;
+    final cid = me['contact_id'];
     crmContactId = cid is int ? cid : int.tryParse('$cid');
-    foundInCrm = res['found_in_crm'] == true;
-    crmLive = api.token != null;
-    clientName = (res['name'] as String?) ?? clientName;
-    this.email = '${res['email'] ?? email ?? this.email}';
-    loggedIn = true;
-    phone = rawPhone;
-    bonus = 0;
-    bonusAccrued = 0;
-    bonusLog = [];
-    notifyListeners();
-    await _persist();
+    foundInCrm = crmContactId != null;
+  }
+
+  Future<void> postLoginBootstrap() async {
     startPolling();
     await Future.wait([
       refreshGarage(),
@@ -765,6 +757,50 @@ class MockStore extends ChangeNotifier {
     ]);
     await syncWidget();
     await consumeWidgetLaunch();
+  }
+
+  Future<void> saveProfileRemote({
+    required String lastName,
+    required String firstName,
+    String middleName = '',
+    required DateTime birthday,
+  }) async {
+    if (api.token == null) throw ApiException(401, 'Нет сессии');
+    final me = await api.patch('/v1/me/profile', {
+      'last_name': lastName.trim(),
+      'first_name': firstName.trim(),
+      'middle_name': middleName.trim(),
+      'birthday': DateFormat('yyyy-MM-dd').format(birthday),
+    });
+    applyMeFromApi(me);
+    clientName = '${me['name'] ?? clientName}';
+    needProfile = me['need_profile'] == true;
+    notifyListeners();
+    if (!needProfile) {
+      await postLoginBootstrap();
+    }
+  }
+
+  Future<void> loginRemote(String rawPhone, String code, {String? email}) async {
+    final res = await api.post('/v1/auth/otp/confirm', {
+      'phone': rawPhone,
+      'code': code,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+    });
+    api.token = res['token'] as String?;
+    crmLive = api.token != null;
+    loggedIn = true;
+    phone = rawPhone;
+    bonus = 0;
+    bonusAccrued = 0;
+    bonusLog = [];
+    applyMeFromApi(res);
+    this.email = '${res['email'] ?? email ?? this.email}';
+    notifyListeners();
+    await _persist();
+    if (!needProfile) {
+      await postLoginBootstrap();
+    }
   }
 
   Future<void> registerPush() async {
@@ -1275,6 +1311,7 @@ class MockStore extends ChangeNotifier {
     loggedIn = false;
     crmLive = false;
     foundInCrm = false;
+    needProfile = false;
     crmContactId = null;
     email = '';
     api.token = null;
@@ -1302,28 +1339,14 @@ class MockStore extends ChangeNotifier {
       final me = await api.get('/v1/me');
       loggedIn = true;
       crmLive = true;
-      phone = '${me['phone'] ?? p.getString('phone') ?? phone}';
+      applyMeFromApi(me);
       email = '${me['email'] ?? ''}';
       clientName = '${me['name'] ?? clientName}';
-      final cid = me['contact_id'];
-      crmContactId = cid is int ? cid : int.tryParse('$cid');
-      foundInCrm = crmContactId != null;
       if (crmLive) recommendations = [];
       notifyListeners();
-      startPolling();
-      await Future.wait([
-        refreshGarage(),
-        refreshBranches(),
-        refreshVisits(),
-        refreshNotes(),
-        refreshChat(),
-        refreshBonuses(),
-        refreshRecommendations(),
-        refreshPromos(),
-        refreshPopularServices(),
-        refreshTickets(),
-        registerPush(),
-      ]);
+      if (!needProfile) {
+        await postLoginBootstrap();
+      }
       await syncWidget();
     } catch (_) {
       api.token = null;
@@ -1460,9 +1483,14 @@ class MockStore extends ChangeNotifier {
     return List.generate(count.clamp(4, 10), (i) => base.add(Duration(minutes: 60 * i)));
   }
 
-  Future<List<SlotOption>> fetchSlots(DateTime day, String branchId) async {
+  Future<List<SlotOption>> fetchSlots(DateTime day, String branchId, {String? excludeOfferId}) async {
     final date = DateFormat('yyyy-MM-dd').format(day);
-    final res = await api.get('/v1/slots', query: {'branch_id': branchId, 'date': date});
+    final query = <String, String>{'branch_id': branchId, 'date': date};
+    final oid = excludeOfferId?.trim();
+    if (oid != null && oid.isNotEmpty && int.tryParse(oid) != null) {
+      query['exclude_offer_id'] = oid;
+    }
+    final res = await api.get('/v1/slots', query: query);
     final raw = res['slots'];
     if (raw is! List) return [];
     final out = <SlotOption>[];

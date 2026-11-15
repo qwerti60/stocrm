@@ -14,6 +14,7 @@ import 'package:stocrm_mobile_app/screens/chat_screen.dart';
 import 'package:stocrm_mobile_app/screens/garage_screen.dart';
 import 'package:stocrm_mobile_app/screens/home_screen.dart';
 import 'package:stocrm_mobile_app/screens/profile_screen.dart';
+import 'package:stocrm_mobile_app/screens/profile_setup_screen.dart';
 import 'package:stocrm_mobile_app/screens/recommendations_screen.dart';
 import 'package:stocrm_mobile_app/screens/shorts_screen.dart';
 import 'package:stocrm_mobile_app/widgets/app_top_bar.dart';
@@ -151,6 +152,7 @@ class _RootScreenState extends State<RootScreen> {
       return ShortsScreen(onDone: store.finishShorts);
     }
     if (!store.loggedIn) return AuthScreen(store: store);
+    if (store.needProfile) return ProfileSetupScreen(store: store);
     return ShellScreen(store: store);
   }
 }

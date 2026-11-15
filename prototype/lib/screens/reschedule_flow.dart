@@ -68,7 +68,7 @@ class _RescheduleFlowState extends State<RescheduleFlow> {
       slotsHint = null;
     });
     try {
-      final list = await widget.store.fetchSlots(day, b.id);
+      final list = await widget.store.fetchSlots(day, b.id, excludeOfferId: widget.visit.id);
       if (!mounted) return;
       setState(() {
         crmSlots = list;

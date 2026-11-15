@@ -19,7 +19,7 @@ from app.config import persist_smtp, settings
 from app.mail import mask_email, send_otp_email, send_test_email, smtp_public, smtp_ready, valid_email
 from app.notify import add_note, known_contact_ids, list_notes, mark_read, poll_once, register_device
 from app.site import mount_site
-from app.slots import MSK, build_slots, day_bounds, unix
+from app.slots import MSK, build_slots, day_bounds, hour_start, parse_busy, slot_free_at, unix
 from app.pdf_zn import work_order_pdf
 from app.store import (
     add_booking_ticket,
@@ -340,6 +340,54 @@ def _parse_booking_when(text: str) -> datetime:
     raise HTTPException(400, "Не удалось разобрать дату и время")
 
 
+def _branch_calendar_day(customer_id: int, day: date) -> tuple[list[dict[str, Any]], list[Any]]:
+    midnight = datetime.combine(day, datetime.min.time(), tzinfo=MSK)
+    cards = stocrm.calendar_cards(customer_id, unix(midnight))
+    posts = stocrm.calendar_posts(customer_id)
+    posts = [p for p in posts if str(p.get("CUSTOMER_ID") or customer_id) == str(customer_id)]
+    post_ids = [p.get("POST_ID") or p.get("ID") for p in posts]
+    return cards, post_ids
+
+
+def _release_calendar_card(customer_id: int, card: dict[str, Any]) -> bool:
+    cid_card = int(card.get("CARD_ID") or 0)
+    post_id = int(card.get("POST_ID") or 0)
+    if not cid_card:
+        return False
+    try:
+        stocrm.calendar_card_deactivate(customer_id=customer_id, card_id=cid_card, post_id=post_id or None)
+        return True
+    except StoCrmError:
+        return False
+
+
+def _free_post_at(customer_id: int, when: datetime, offer_id: int) -> int:
+    day = when.astimezone(MSK).date()
+    cards, post_ids = _branch_calendar_day(customer_id, day)
+    ts0 = unix(hour_start(when))
+    ts1 = unix(hour_start(when) + timedelta(hours=1))
+    busy_posts: set[int] = set()
+    for c in parse_busy(cards, exclude_offer_ids={int(offer_id)}):
+        if c["from"] < ts1 and c["to"] > ts0:
+            try:
+                busy_posts.add(int(c["post"]))
+            except (TypeError, ValueError):
+                pass
+    for pid in post_ids:
+        try:
+            p = int(pid)
+        except (TypeError, ValueError):
+            continue
+        if p and p not in busy_posts:
+            return p
+    if post_ids:
+        try:
+            return int(post_ids[0])
+        except (TypeError, ValueError):
+            pass
+    return 0
+
+
 def _find_calendar_card(customer_id: int, offer_id: int, anchor: datetime | None = None) -> dict[str, Any] | None:
     anchor = anchor or datetime.now(MSK)
     for delta in range(-21, 45):
@@ -492,6 +540,13 @@ class OtpIn(BaseModel):
     phone: str
     code: str
     email: str | None = None
+
+
+class ProfileIn(BaseModel):
+    last_name: str
+    first_name: str
+    middle_name: str = ""
+    birthday: str = Field(description="YYYY-MM-DD")
 
 
 class GarageIn(BaseModel):
@@ -654,6 +709,81 @@ def stocrm_users(x_bff_secret: str | None = Header(default=None, alias="X-BFF-Se
     }
 
 
+def _pick_contact_field(data: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        val = data.get(key)
+        if val not in (None, False, "", 0, "0"):
+            s = str(val).strip()
+            if s:
+                return s
+    return ""
+
+
+def _profile_from_crm(contact: dict[str, Any] | None, info: dict[str, Any] | None = None) -> dict[str, Any]:
+    merged = {**(contact or {}), **(info or {})}
+    last_name = _pick_contact_field(merged, "LAST_NAME", "LASTNAME", "SURNAME")
+    first_name = _pick_contact_field(merged, "FIRST_NAME", "FIRSTNAME")
+    middle_name = _pick_contact_field(merged, "MIDDLE_NAME", "MIDDLENAME", "SECONDNAME", "PATRONYMIC")
+    birthday = _pick_contact_field(merged, "BIRTHDAY", "BIRTH_DATE", "DATE_OF_BIRTH", "BIRTHDATE")
+    if birthday and len(birthday) >= 10 and birthday[4:5] == "-" and birthday[7:8] == "-":
+        try:
+            birthday = datetime.strptime(birthday[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+    title = _pick_contact_field(merged, "TITLE")
+    display = " ".join(x for x in (last_name, first_name, middle_name) if x) or title
+    return {
+        "last_name": last_name,
+        "first_name": first_name,
+        "middle_name": middle_name,
+        "birthday": birthday,
+        "title": title,
+        "display_name": display,
+    }
+
+
+def _needs_profile(cid: Any, profile: dict[str, Any]) -> bool:
+    if not cid:
+        return False
+    if not (profile.get("first_name") or "").strip() or not (profile.get("last_name") or "").strip():
+        return True
+    bad = {"клиент", "client", "гость", "guest"}
+    first = (profile.get("first_name") or "").strip().lower()
+    last = (profile.get("last_name") or "").strip().lower()
+    if first in bad or last in bad:
+        return True
+    title = (profile.get("title") or "").strip()
+    disp = (profile.get("display_name") or "").strip()
+    if title and len(re.sub(r"\D", "", title)) >= 10 and not disp:
+        return True
+    return False
+
+
+def _me_out(user: dict[str, Any], contact: dict[str, Any] | None = None) -> dict[str, Any]:
+    cid = user.get("contact_id")
+    info: dict[str, Any] = {}
+    if cid:
+        try:
+            info = stocrm.contact_get_info(int(cid))
+        except Exception:
+            info = {}
+    if contact is None:
+        contact = user.get("contact") if isinstance(user.get("contact"), dict) else None
+    profile = _profile_from_crm(contact, info)
+    need = _needs_profile(cid, profile)
+    name = profile.get("display_name") or user.get("name") or "Клиент"
+    if need and name.lower() in ("клиент", "client"):
+        name = "Клиент"
+    return {
+        "phone": user.get("phone"),
+        "email": user.get("email"),
+        "contact_id": cid or user.get("contact_id"),
+        "name": name,
+        "need_profile": need,
+        "profile": profile,
+    }
+
+
 def _lookup_contact(phone: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
     """Контакт CRM, email из свойства PROP_TYPE_ID=2, иначе связка phone↔email в JSON."""
     contact = None
@@ -798,15 +928,18 @@ def otp_confirm(body: OtpIn) -> dict[str, Any]:
     if cid:
         touch_audience(cid, phone=phone, name=str(name or ""))
     otp_box.pop(phone, None)
+    me = _me_out(sessions[token], contact)
     return {
         "token": token,
         "phone": phone,
         "email": email or crm_email,
         "contact_id": cid or None,
-        "name": name,
+        "name": me.get("name") or name,
         "found_in_crm": bool(cid),
         "created_in_crm": created,
         "crm_error": crm_error,
+        "need_profile": me.get("need_profile"),
+        "profile": me.get("profile"),
     }
 
 
@@ -831,12 +964,50 @@ def me(authorization: str | None = Header(default=None)) -> dict[str, Any]:
                     cid = new_cid
         except Exception:
             pass
-    return {
-        "phone": user.get("phone"),
-        "email": user.get("email"),
-        "contact_id": cid or user.get("contact_id"),
-        "name": user.get("name"),
-    }
+    user["contact_id"] = cid or user.get("contact_id")
+    return _me_out(user, user.get("contact") if isinstance(user.get("contact"), dict) else None)
+
+
+@app.patch("/v1/me/profile")
+def me_profile(body: ProfileIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = require_user(authorization)
+    token = authorization.split(" ", 1)[1].strip() if authorization else ""
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта в STOCRM")
+    last = body.last_name.strip()
+    first = body.first_name.strip()
+    if not last or not first:
+        raise HTTPException(400, "Укажите фамилию и имя")
+    birthday_crm = ""
+    if body.birthday.strip():
+        try:
+            birthday_crm = datetime.strptime(body.birthday.strip()[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
+        except ValueError:
+            raise HTTPException(400, "Дата рождения в формате ГГГГ-ММ-ДД") from None
+    else:
+        raise HTTPException(400, "Укажите дату рождения")
+    try:
+        stocrm.contact_update_profile(
+            int(cid),
+            last_name=last,
+            first_name=first,
+            middle_name=body.middle_name.strip(),
+            birthday=birthday_crm,
+        )
+    except StoCrmError as e:
+        raise HTTPException(502, f"STOCRM: {str(e)[:240]}") from e
+    display = " ".join(x for x in (last, first, body.middle_name.strip()) if x)
+    user["name"] = display
+    contact = user.get("contact") if isinstance(user.get("contact"), dict) else {}
+    if isinstance(contact, dict):
+        contact = {**contact, "LAST_NAME": last, "FIRST_NAME": first, "MIDDLE_NAME": body.middle_name.strip(), "TITLE": display}
+        user["contact"] = contact
+    if token:
+        sessions[token] = user
+        put_session(token, user)
+    touch_audience(int(cid), phone=str(user.get("phone") or ""), name=display)
+    return _me_out(user, contact if isinstance(contact, dict) else None)
 
 
 def _garage_merged(cid: int) -> list[dict[str, Any]]:
@@ -1023,6 +1194,7 @@ def visit_detail(oid: int, authorization: str | None = Header(default=None)) -> 
 def slots(
     branch_id: str = Query(..., description="CUSTOMER_ID филиала"),
     day: str = Query(..., alias="date", description="YYYY-MM-DD, Europe/Moscow"),
+    exclude_offer_id: int | None = Query(default=None, description="Не считать занятым слот этой сделки (перенос)"),
 ) -> dict[str, Any]:
     if not branch_id.isdigit():
         raise HTTPException(400, "branch_id — числовой CUSTOMER_ID филиала")
@@ -1031,15 +1203,14 @@ def slots(
     except ValueError:
         raise HTTPException(400, "date в формате YYYY-MM-DD")
     customer_id = int(branch_id)
-    midnight = datetime.combine(parsed, datetime.min.time(), tzinfo=MSK)
     try:
-        cards = stocrm.calendar_cards(customer_id, unix(midnight))
-        posts = stocrm.calendar_posts(customer_id)
-        posts = [p for p in posts if str(p.get("CUSTOMER_ID") or customer_id) == str(customer_id)]
+        cards, post_ids = _branch_calendar_day(customer_id, parsed)
     except StoCrmError as e:
         raise HTTPException(502, f"Календарь STOCRM: {str(e)[:300]}") from e
-    post_ids = [p.get("POST_ID") or p.get("ID") for p in posts]
-    built = build_slots(day=parsed, cards=cards, post_ids=post_ids)
+    exclude: set[int] = set()
+    if exclude_offer_id is not None and int(exclude_offer_id) > 0:
+        exclude.add(int(exclude_offer_id))
+    built = build_slots(day=parsed, cards=cards, post_ids=post_ids, exclude_offer_ids=exclude or None)
     start, end = day_bounds(parsed)
     return {
         "branch_id": customer_id,
@@ -1135,23 +1306,7 @@ def booking_cancel(offer_id: int, authorization: str | None = Header(default=Non
     if branch_id:
         card = _find_calendar_card(branch_id, offer_id)
         if card:
-            cid_card = int(card.get("CARD_ID") or 0)
-            post_id = int(card.get("POST_ID") or 0)
-            df = int(card.get("DATE_FROM") or 0)
-            dt = int(card.get("DATE_TO") or 0)
-            if cid_card and post_id and df and dt:
-                try:
-                    stocrm.calendar_card_edit(
-                        customer_id=branch_id,
-                        post_id=post_id,
-                        card_id=cid_card,
-                        date_from=df,
-                        date_to=dt,
-                        offer_id=offer_id,
-                        comment=note,
-                    )
-                except StoCrmError:
-                    pass
+            _release_calendar_card(branch_id, card)
     add_note(int(cid), "Запись отменена", f"Сделка №{offer_id} · клиент отменил в приложении", offer_id=offer_id, kind="book")
     return {"ok": True, "message": "Запись отменена. Менеджер увидит изменение в CRM."}
 
@@ -1186,30 +1341,58 @@ def booking_reschedule(
         stocrm.offer_update_field(offer_id, "COMMENT", merged[:2000])
     except StoCrmError as e:
         raise HTTPException(502, f"Не удалось обновить заявку: {str(e)[:200]}") from e
-    card: dict[str, Any] | None = None
-    search_ids = [customer_id]
     old_customer = int(raw.get("CUSTOMER_ID") or 0)
-    if old_customer and old_customer not in search_ids:
-        search_ids.append(old_customer)
-    for cust in search_ids:
-        card = _find_calendar_card(cust, offer_id, anchor=when)
-        if card:
-            customer_id = cust
+    card: dict[str, Any] | None = None
+    card_branch = 0
+    for cust in {customer_id, old_customer} - {0}:
+        found = _find_calendar_card(cust, offer_id, anchor=when)
+        if found:
+            card = found
+            card_branch = cust
             break
+    target_day = when.astimezone(MSK).date()
+    try:
+        day_cards, day_posts = _branch_calendar_day(customer_id, target_day)
+    except StoCrmError as e:
+        raise HTTPException(502, f"Календарь STOCRM: {str(e)[:200]}") from e
+    if not slot_free_at(
+        when=when,
+        day=target_day,
+        cards=day_cards,
+        post_ids=day_posts,
+        exclude_offer_ids={int(offer_id)},
+    ):
+        raise HTTPException(409, "Выбранное время уже занято. Обновите список слотов.")
     calendar_ok = False
-    if card:
+    if card and card_branch and card_branch != customer_id:
+        _release_calendar_card(card_branch, card)
+        card = None
+    if card and card_branch == customer_id:
         cid_card = int(card.get("CARD_ID") or 0)
         post_id = int(card.get("POST_ID") or 0)
         if not post_id:
-            posts = stocrm.calendar_posts(customer_id)
-            if posts:
-                post_id = int(posts[0].get("POST_ID") or posts[0].get("ID") or 0)
+            post_id = _free_post_at(customer_id, when, offer_id)
         if cid_card and post_id:
             try:
                 stocrm.calendar_card_edit(
                     customer_id=customer_id,
                     post_id=post_id,
                     card_id=cid_card,
+                    date_from=unix(when),
+                    date_to=unix(slot_end),
+                    offer_id=offer_id,
+                    comment=note,
+                )
+                calendar_ok = True
+            except StoCrmError:
+                calendar_ok = False
+    elif not card:
+        post_id = _free_post_at(customer_id, when, offer_id)
+        if post_id:
+            try:
+                stocrm.calendar_card_add(
+                    customer_id=customer_id,
+                    post_id=post_id,
                     date_from=unix(when),
                     date_to=unix(slot_end),
                     offer_id=offer_id,

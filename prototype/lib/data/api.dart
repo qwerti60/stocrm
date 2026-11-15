@@ -51,6 +51,11 @@ class ApiClient {
     return r.bodyBytes;
   }
 
+  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) async {
+    final r = await http.patch(Uri.parse('$base$path'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 40));
+    return _decode(r);
+  }
+
   Future<Map<String, dynamic>> delete(String path) async {
     final r = await http.delete(Uri.parse('$base$path'), headers: _headers).timeout(const Duration(seconds: 40));
     return _decode(r);
