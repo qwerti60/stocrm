@@ -1,5 +1,9 @@
 # iOS сборка Codemagic / TestFlight
 
+**Текущая версия в `prototype/pubspec.yaml`:** `1.0.5+19` · workflow **`ios-testflight`** · `API_BASE=http://45.81.33.7`
+
+**Запуск:** [Codemagic](https://codemagic.io) → репозиторий `stocrm` → **Start new build** → ветка `master`, workflow **iOS TestFlight**. Номер билда на машине Codemagic поднимается автоматически (максимум из ASC/TestFlight + `pubspec` + `+`).
+
 ## Ошибка `GET …/bundleIds/…/profiles returned 500`
 
 Это **сбой на стороне Apple** (App Store Connect API), не ошибка проекта.
