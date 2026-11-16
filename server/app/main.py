@@ -858,21 +858,22 @@ def otp_request(body: PhoneIn) -> dict[str, Any]:
     phone = digits_phone(body.phone)
     contact, crm_email, crm_error = _lookup_contact(phone)
     supplied = (body.email or "").strip()
-    email = crm_email
-    if not email:
-        if not supplied:
-            raise HTTPException(
-                409,
-                "В карточке STOCRM нет email. Укажите почту — код придёт туда, телефон останется ключом входа.",
-            )
+    email = (crm_email or "").strip().lower() or None
+    if supplied:
         try:
-            email = valid_email(supplied)
+            chosen = valid_email(supplied)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        other = identity_by_email(email)
+        other = identity_by_email(chosen)
         if other and other.get("phone") and other.get("phone") != phone:
             raise HTTPException(409, "Этот email уже привязан к другому номеру")
+        email = chosen
         upsert_identity(phone, email=email, contact_id=(contact or {}).get("CONTACT_ID"))
+    if not email:
+        raise HTTPException(
+            409,
+            "Укажите email — код придёт на почту. Если ошиблись ранее, введите правильный адрес.",
+        )
     try:
         return _issue_otp(phone, email, contact, is_new=contact is None)
     except HTTPException:
@@ -1008,6 +1009,57 @@ def me_profile(body: ProfileIn, authorization: str | None = Header(default=None)
         put_session(token, user)
     touch_audience(int(cid), phone=str(user.get("phone") or ""), name=display)
     return _me_out(user, contact if isinstance(contact, dict) else None)
+
+
+@app.post("/v1/me/email/request")
+def me_email_request(body: PhoneIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Код на новый email для смены почты в профиле."""
+    user = require_user(authorization)
+    phone = str(user.get("phone") or "")
+    if not phone:
+        raise HTTPException(409, "Нет телефона в сессии")
+    try:
+        email = valid_email((body.email or "").strip())
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    other = identity_by_email(email)
+    if other and other.get("phone") and other.get("phone") != phone:
+        raise HTTPException(409, "Этот email уже привязан к другому номеру")
+    try:
+        return _issue_otp(phone, email, user.get("contact"), is_new=False)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, str(e)[:200]) from e
+
+
+@app.post("/v1/me/email/confirm")
+def me_email_confirm(body: OtpIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = require_user(authorization)
+    token = authorization.split(" ", 1)[1].strip() if authorization else ""
+    phone = digits_phone(body.phone) or str(user.get("phone") or "")
+    pending = otp_box.get(phone)
+    got = (pending or {}).get("code") if isinstance(pending, dict) else pending
+    if got != body.code.strip():
+        raise HTTPException(400, "Неверный код")
+    try:
+        email = valid_email((body.email or pending.get("email") if isinstance(pending, dict) else "") or user.get("email") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    cid = user.get("contact_id")
+    if not cid:
+        raise HTTPException(409, "Нет контакта в CRM")
+    try:
+        stocrm.contact_set_email(int(cid), email)
+    except StoCrmError as e:
+        raise HTTPException(502, f"STOCRM: {str(e)[:200]}") from e
+    upsert_identity(phone, email=email, contact_id=int(cid))
+    user["email"] = email
+    if token:
+        sessions[token] = user
+        put_session(token, user)
+    otp_box.pop(phone, None)
+    return _me_out(user, user.get("contact") if isinstance(user.get("contact"), dict) else None)
 
 
 def _garage_merged(cid: int) -> list[dict[str, Any]]:

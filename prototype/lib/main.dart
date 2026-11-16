@@ -109,13 +109,14 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   final MockStore store = MockStore();
   bool booting = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     store.addListener(_onStore);
     store.bootstrap().whenComplete(() {
       if (mounted) setState(() => booting = false);
@@ -124,9 +125,17 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     store.removeListener(_onStore);
     store.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && store.loggedIn && !store.needProfile) {
+      store.refreshOnResume();
+    }
   }
 
   void _onStore() => setState(() {});

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     serve_site: bool = True
     fcm_server_key: str = ""
     fcm_credentials: str = "secrets/firebase-adminsdk.json"
-    poll_interval_sec: int = 90
+    poll_interval_sec: int = 45
     admin_password: str = ""
     bonus_percent: int = 5
     bonus_expire_days: int = 365

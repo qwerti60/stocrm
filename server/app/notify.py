@@ -106,9 +106,23 @@ def poll_once(stocrm: Any, contact_ids: list[int]) -> int:
                 last_status[key] = sid
             if first:
                 continue
-            became_ready = prev is not None and prev != sid and is_ready_status(sid, title) and not is_ready_status(prev, "")
-            if became_ready:
-                add_note(cid, "Ваша машина готова!", f"{title}. Заберите авто в сервисе.", oid)
+            if prev is not None and prev != sid:
+                if is_ready_status(sid, title) and not is_ready_status(prev, ""):
+                    add_note(
+                        cid,
+                        "Ваша машина готова!",
+                        f"{title}. Заберите авто в сервисе.",
+                        oid,
+                        kind="ready",
+                    )
+                else:
+                    add_note(
+                        cid,
+                        "Статус ремонта",
+                        f"Заказ-наряд №{oid}: {title}".strip(),
+                        oid,
+                        kind="status",
+                    )
                 created += 1
         seen_contacts.add(cid)
     return created

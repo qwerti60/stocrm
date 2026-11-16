@@ -365,7 +365,9 @@ class MockStore extends ChangeNotifier {
   bool needProfile = false;
   Timer? _poller;
   Timer? _chatPoller;
+  Timer? _visitsPoller;
   static const _chatPollInterval = Duration(seconds: 4);
+  static const _visitsPollInterval = Duration(seconds: 25);
   List<AppNote> notes = [];
   String? pendingReadyAlert;
   bool _pushListenersStarted = false;
@@ -840,13 +842,20 @@ class MockStore extends ChangeNotifier {
       final kind = msg.data['type']?.toString() ?? '';
       if (kind == 'chat') {
         unawaited(refreshChat());
+      } else if (kind == 'status' || kind == 'ready') {
+        unawaited(refreshVisits());
+        unawaited(refreshNotes());
       } else {
         unawaited(pollNow());
       }
     });
     FirebaseMessaging.onMessageOpenedApp.listen((msg) {
       final kind = msg.data['type']?.toString() ?? '';
-      if (kind == 'chat') pendingScreen = 'chat';
+      if (kind == 'chat') {
+        pendingScreen = 'chat';
+      } else if (kind == 'status' || kind == 'ready') {
+        pendingScreen = 'status';
+      }
       unawaited(refreshChat());
       unawaited(pollNow());
     });
@@ -857,11 +866,38 @@ class MockStore extends ChangeNotifier {
     _poller = Timer.periodic(const Duration(seconds: 90), (_) => pollNow());
     _chatPoller?.cancel();
     _chatPoller = Timer.periodic(_chatPollInterval, (_) => refreshChat());
+    _visitsPoller?.cancel();
+    _visitsPoller = Timer.periodic(_visitsPollInterval, (_) => refreshVisits());
+  }
+
+  Future<void> refreshOnResume() async {
+    if (api.token == null) return;
+    await Future.wait([refreshVisits(), refreshNotes(), refreshChat()]);
+  }
+
+  String get _phoneDigits => phone.replaceAll(RegExp(r'\D'), '');
+
+  Future<void> requestEmailChangeOtp(String newEmail) async {
+    if (api.token == null) throw ApiException(401, 'Нет сессии');
+    await api.post('/v1/me/email/request', {'phone': _phoneDigits, 'email': newEmail.trim()});
+  }
+
+  Future<void> confirmEmailChange({required String newEmail, required String code}) async {
+    if (api.token == null) throw ApiException(401, 'Нет сессии');
+    final me = await api.post('/v1/me/email/confirm', {
+      'phone': _phoneDigits,
+      'email': newEmail.trim(),
+      'code': code.trim(),
+    });
+    applyMeFromApi(me);
+    email = '${me['email'] ?? newEmail}';
+    notifyListeners();
   }
 
   Future<void> pollNow() async {
     if (api.token == null) return;
     final prev = {for (final v in visits) v.id: (v.status, v.isReady)};
+    final prevStatusOnly = {for (final v in visits) v.id: v.status};
     final prevStaff = chat.where((m) => m.fromStaff).length;
     await Future.wait([
       refreshVisits(),
@@ -878,6 +914,19 @@ class MockStore extends ChangeNotifier {
       final old = prev[v.id];
       if (old != null && !old.$2 && v.isReady) {
         pendingReadyAlert = 'Ваша машина готова!';
+      }
+      final oldStatus = prevStatusOnly[v.id];
+      if (oldStatus != null && oldStatus != v.status) {
+        pendingReadyAlert ??= '№${v.id}: ${v.status}';
+        if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+          unawaited(
+            showBannerPush(
+              id: '${v.id}-$oldStatus'.hashCode,
+              title: v.isReady ? 'Машина готова' : 'Статус ремонта',
+              body: '${v.carPlate.isNotEmpty ? v.carPlate : v.serviceTitle}: ${v.status}',
+            ),
+          );
+        }
       }
     }
     if (unreadNotes.any((n) => n.title.contains('готова'))) {
@@ -1307,6 +1356,8 @@ class MockStore extends ChangeNotifier {
     _poller = null;
     _chatPoller?.cancel();
     _chatPoller = null;
+    _visitsPoller?.cancel();
+    _visitsPoller = null;
     final token = api.token;
     loggedIn = false;
     crmLive = false;
@@ -1415,6 +1466,7 @@ class MockStore extends ChangeNotifier {
   void dispose() {
     _poller?.cancel();
     _chatPoller?.cancel();
+    _visitsPoller?.cancel();
     super.dispose();
   }
 

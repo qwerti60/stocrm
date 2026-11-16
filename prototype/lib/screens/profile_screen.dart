@@ -8,6 +8,7 @@ import 'package:stocrm_mobile_app/screens/visits_screen.dart';
 import 'package:stocrm_mobile_app/push_permissions.dart';
 import 'package:stocrm_mobile_app/theme.dart';
 import 'package:stocrm_mobile_app/widgets/app_page_scaffold.dart';
+import 'package:stocrm_mobile_app/widgets/email_change_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -36,6 +37,11 @@ class ProfileScreen extends StatelessWidget {
               subtitle: Text(
                 store.email.isNotEmpty ? '${store.phone} · ${store.email}' : '${store.phone} · STOCRM',
                 style: const TextStyle(color: vagMuted),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit_outlined, color: vagRed, size: 20),
+                tooltip: 'Сменить email',
+                onPressed: () => EmailChangeSheet.show(context, store),
               ),
             ),
           ),

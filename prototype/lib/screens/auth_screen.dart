@@ -142,18 +142,30 @@ class _AuthScreenState extends State<AuthScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
               decoration: const InputDecoration(labelText: 'Телефон', prefixText: '+7  ', hintText: '900 000-00-00'),
             ),
-            if (needEmail && !codeSent) ...[
+            if (!codeSent) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: needEmail ? 'Email *' : 'Email',
+                  hintText: 'name@mail.ru',
+                  helperText: needEmail
+                      ? 'Код придёт сюда — проверьте адрес'
+                      : 'Если в CRM другой адрес, укажите правильный',
+                ),
+              ),
+            ],
+            if (codeSent) ...[
               const SizedBox(height: 12),
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  hintText: 'name@mail.ru',
+                  helperText: 'Ошиблись? Исправьте и отправьте код повторно',
                 ),
               ),
-            ],
-            if (codeSent) ...[
               const SizedBox(height: 12),
               TextField(
                 controller: codeCtrl,
@@ -190,17 +202,23 @@ class _AuthScreenState extends State<AuthScreen> {
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : Text(codeSent ? 'Войти' : (needEmail ? 'Получить код на почту' : 'Продолжить')),
             ),
-            if (codeSent)
+            if (codeSent) ...[
+              TextButton(
+                onPressed: busy ? null : sendCode,
+                child: const Text('Отправить код повторно', style: TextStyle(color: vagMuted)),
+              ),
               TextButton(
                 onPressed: busy
                     ? null
                     : () => setState(() {
                           codeSent = false;
+                          codeCtrl.clear();
                           error = null;
                           hint = null;
                         }),
-                child: const Text('Изменить данные', style: TextStyle(color: vagMuted)),
+                child: const Text('Изменить телефон', style: TextStyle(color: vagMuted)),
               ),
+            ],
             const SizedBox(height: 16),
             const Text(
               'Пока SMTP на сервере не настроен, код 1234. После настройки письма уходят на email из CRM или указанный при регистрации.',

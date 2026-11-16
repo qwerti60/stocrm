@@ -33,6 +33,7 @@ python probe.py
 - `POST /v1/auth/otp/confirm` `{"phone":"9001234567","code":"1234"}` — ищет контакт по `MAIN_PHONE`, при регистрации создаёт контакт с телефоном и почтой; в ответе `need_profile`, если в CRM нет ФИО
 - `GET /v1/me` — телефон, `need_profile`, `profile` (ФИО, дата рождения из `contact/get_info`)
 - `PATCH /v1/me/profile` `{"last_name":"Иванов","first_name":"Иван","middle_name":"Иванович","birthday":"1990-05-15"}` — пишет в STOCRM `contact/update`
+- `POST /v1/me/email/request` / `confirm` — смена почты с кодом (и в STOCRM `contact/update`)
 - `GET /v1/garage` — авто контакта
 - `POST /v1/garage` — добавить авто в CRM (`contact/add_car`)
 - `DELETE /v1/garage/{id}` — убрать из гаража
